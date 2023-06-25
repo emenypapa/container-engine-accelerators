@@ -363,6 +363,7 @@ func (ngm *nvidiaGPUManager) Start() error {
 		ngm.defaultDevices = append(ngm.defaultDevices, nvidiaUVMToolsDevicePath)
 	}
 
+	//设备发现
 	if err := ngm.discoverGPUs(); err != nil {
 		return err
 	}

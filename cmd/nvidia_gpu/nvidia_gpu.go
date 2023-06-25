@@ -96,6 +96,7 @@ func main() {
 	glog.Infof("Using gpu config: %v", gpuConfig)
 	ngm := gpumanager.NewNvidiaGPUManager(devDirectory, procDirectory, mountPaths, gpuConfig)
 
+	//驱动程序检测
 	// Retry until nvidiactl and nvidia-uvm are detected. This is required
 	// because Nvidia drivers may not be installed initially.
 	for {
@@ -108,6 +109,7 @@ func main() {
 		time.Sleep(5 * time.Second)
 	}
 
+	//启动英伟达驱动动态库
 	if ret := nvml.Init(); ret != nvml.SUCCESS {
 		glog.Fatalf("failed to initialize nvml: %v", nvml.ErrorString(ret))
 	}
