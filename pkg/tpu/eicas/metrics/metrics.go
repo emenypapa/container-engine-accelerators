@@ -80,7 +80,7 @@ func (h *HostMonitor) Collect(ch chan<- prometheus.Metric) {
 		}
 
 	}
-	ch <- prometheus.MustNewConstMetric(h.tpuDesc, prometheus.GaugeValue, float64(value), h.labelValues...)
+	ch <- prometheus.MustNewConstMetric(h.tpuDesc, prometheus.GaugeValue, float64(value))
 
 }
 
