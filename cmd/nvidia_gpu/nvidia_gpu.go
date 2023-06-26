@@ -15,105 +15,43 @@
 package main
 
 import (
-	"encoding/json"
-	"flag"
 	"fmt"
-	"io/ioutil"
+	"github.com/GoogleCloudPlatform/container-engine-accelerators/pkg/gpu/nvidia/metrics"
 	"time"
 
 	gpumanager "github.com/GoogleCloudPlatform/container-engine-accelerators/pkg/gpu/nvidia"
-	healthcheck "github.com/GoogleCloudPlatform/container-engine-accelerators/pkg/gpu/nvidia/health_check"
-	"github.com/GoogleCloudPlatform/container-engine-accelerators/pkg/gpu/nvidia/metrics"
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/golang/glog"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
 const (
 	// Device plugin settings.
-	kubeletEndpoint      = "kubelet.sock"
-	pluginEndpointPrefix = "nvidiaGPU"
-	devDirectory         = "/dev"
-	// Proc directory is used to lookup the access files for each GPU partition.
-	procDirectory = "/proc"
+	kubeletEndpoint                = "kubelet.sock"
+	pluginEndpointPrefix           = "eicasTPU"
+	devDirectory                   = "/proc/bmsophon"
+	hostPathPrefix                 = "/opt/sophon"
+	containerPathPrefix            = "/opt/sophon"
+	enableContainerGPUMetrics      = true
+	tpuMetricsPort                 = 2112
+	tpuMetricsCollectionIntervalMs = 30000
 )
-
-var (
-	hostPathPrefix                 = flag.String("host-path", "/home/kubernetes/bin/nvidia", "Path on the host that contains nvidia libraries. This will be mounted inside the container as '-container-path'")
-	containerPathPrefix            = flag.String("container-path", "/usr/local/nvidia", "Path on the container that mounts '-host-path'")
-	hostVulkanICDPathPrefix        = flag.String("host-vulkan-icd-path", "/home/kubernetes/bin/nvidia/vulkan/icd.d", "Path on the host that contains the Nvidia Vulkan installable client driver. This will be mounted inside the container as '-container-vulkan-icd-path'")
-	containerVulkanICDPathPrefix   = flag.String("container-vulkan-icd-path", "/etc/vulkan/icd.d", "Path on the container that mounts '-host-vulkan-icd-path'")
-	pluginMountPath                = flag.String("plugin-directory", "/device-plugin", "The directory path to create plugin socket")
-	enableContainerGPUMetrics      = flag.Bool("enable-container-gpu-metrics", false, "If true, the device plugin will expose GPU metrics for containers with allocated GPU")
-	enableHealthMonitoring         = flag.Bool("enable-health-monitoring", false, "If true, the device plugin will detect critical Xid errors and mark the GPUs unallocatable")
-	gpuMetricsPort                 = flag.Int("gpu-metrics-port", 2112, "Port on which GPU metrics for containers are exposed")
-	gpuMetricsCollectionIntervalMs = flag.Int("gpu-metrics-collection-interval", 30000, "Collection interval (in milli seconds) for container GPU metrics")
-	gpuConfigFile                  = flag.String("gpu-config", "/etc/nvidia/gpu_config.json", "File with GPU configurations for device plugin")
-)
-
-func parseGPUConfig(gpuConfigFile string) (gpumanager.GPUConfig, error) {
-	var gpuConfig gpumanager.GPUConfig
-
-	gpuConfigContent, err := ioutil.ReadFile(gpuConfigFile)
-	if err != nil {
-		return gpuConfig, fmt.Errorf("unable to read gpu config file %s: %v", gpuConfigFile, err)
-	}
-
-	if err = json.Unmarshal(gpuConfigContent, &gpuConfig); err != nil {
-		return gpuConfig, fmt.Errorf("failed to parse GPU config file contents: %s, error: %v", gpuConfigContent, err)
-	}
-
-	err = gpuConfig.AddDefaultsAndValidate()
-	if err != nil {
-		return gpumanager.GPUConfig{}, err
-	}
-	return gpuConfig, nil
-}
 
 func main() {
-	flag.Parse()
 	glog.Infoln("device-plugin started")
 	mountPaths := []pluginapi.Mount{
-		{HostPath: *hostPathPrefix, ContainerPath: *containerPathPrefix, ReadOnly: true},
-		{HostPath: *hostVulkanICDPathPrefix, ContainerPath: *containerVulkanICDPathPrefix, ReadOnly: true}}
+		{HostPath: hostPathPrefix, ContainerPath: containerPathPrefix, ReadOnly: true}}
 
-	var gpuConfig gpumanager.GPUConfig
-	if *gpuConfigFile != "" {
-		glog.Infof("Reading GPU config file: %s", *gpuConfigFile)
-		var err error
-		gpuConfig, err = parseGPUConfig(*gpuConfigFile)
-		if err != nil {
-			glog.Infof("Failed to parse GPU config file %s: %v", *gpuConfigFile, err)
-			glog.Infof("Falling back to default GPU config.")
-			gpuConfig = gpumanager.GPUConfig{}
-		}
-	}
-	err := gpuConfig.AddHealthCriticalXid()
-	if err != nil {
-		glog.Infof("Failed to Add HealthCriticalXid : %v", err)
-	}
+	ngm := gpumanager.NewEicasTPUManager(devDirectory, mountPaths)
 
-	glog.Infof("Using gpu config: %v", gpuConfig)
-	ngm := gpumanager.NewNvidiaGPUManager(devDirectory, procDirectory, mountPaths, gpuConfig)
-
-	//驱动程序检测
-	// Retry until nvidiactl and nvidia-uvm are detected. This is required
-	// because Nvidia drivers may not be installed initially.
 	for {
 		err := ngm.CheckDevicePaths()
 		if err == nil {
 			break
 		}
 		// Use non-default level to avoid log spam.
-		glog.V(3).Infof("nvidiaGPUManager.CheckDevicePaths() failed: %v", err)
+		glog.V(3).Infof("eicasTPUManager.CheckDevicePaths() failed: %v", err)
 		time.Sleep(5 * time.Second)
 	}
-
-	//启动英伟达驱动动态库
-	if ret := nvml.Init(); ret != nvml.SUCCESS {
-		glog.Fatalf("failed to initialize nvml: %v", nvml.ErrorString(ret))
-	}
-	defer nvml.Shutdown()
 
 	for {
 		err := ngm.Start()
@@ -121,13 +59,13 @@ func main() {
 			break
 		}
 
-		glog.Errorf("failed to start GPU device manager: %v", err)
+		glog.Errorf("failed to start TPU device manager: %v", err)
 		time.Sleep(5 * time.Second)
 	}
 
-	if *enableContainerGPUMetrics {
-		glog.Infof("Starting metrics server on port: %d, endpoint path: %s, collection frequency: %d", *gpuMetricsPort, "/metrics", *gpuMetricsCollectionIntervalMs)
-		metricServer := metrics.NewMetricServer(*gpuMetricsCollectionIntervalMs, *gpuMetricsPort, "/metrics")
+	if enableContainerGPUMetrics {
+		glog.Infof("Starting metrics server on port: %d, endpoint path: %s, collection frequency: %d", tpuMetricsPort, "/metrics", tpuMetricsCollectionIntervalMs)
+		metricServer := metrics.NewMetricServer(tpuMetricsCollectionIntervalMs, tpuMetricsPort, "/metrics")
 		err := metricServer.Start()
 		if err != nil {
 			glog.Infof("Failed to start metric server: %v", err)
@@ -136,14 +74,5 @@ func main() {
 		defer metricServer.Stop()
 	}
 
-	if *enableHealthMonitoring {
-		hc := healthcheck.NewGPUHealthChecker(ngm.ListPhysicalDevices(), ngm.Health, ngm.ListHealthCriticalXid())
-		if err := hc.Start(); err != nil {
-			glog.Infof("Failed to start GPU Health Checker: %v", err)
-			return
-		}
-		defer hc.Stop()
-	}
-
-	ngm.Serve(*pluginMountPath, kubeletEndpoint, fmt.Sprintf("%s-%d.sock", pluginEndpointPrefix, time.Now().Unix()))
+	ngm.Serve(pluginapi.DevicePluginPath, kubeletEndpoint, fmt.Sprintf("%s-%d.sock", pluginEndpointPrefix, time.Now().Unix()))
 }

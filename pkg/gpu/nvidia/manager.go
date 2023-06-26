@@ -15,399 +15,164 @@
 package nvidia
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"os"
-	"os/exec"
 	"path"
 	"regexp"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	//"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/golang/glog"
 	"google.golang.org/grpc"
 
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
-
-	"github.com/GoogleCloudPlatform/container-engine-accelerators/pkg/gpu/nvidia/gpusharing"
-	"github.com/GoogleCloudPlatform/container-engine-accelerators/pkg/gpu/nvidia/mig"
 )
 
 const (
-	// All NVIDIA GPUs cards should be mounted with nvidiactl and nvidia-uvm
-	// If the driver installed correctly, these two devices will be there.
-	nvidiaCtlDevice = "nvidiactl"
-	nvidiaUVMDevice = "nvidia-uvm"
-
-	// Optional devices.
-	nvidiaUVMToolsDevice = "nvidia-uvm-tools"
-	nvidiaModesetDevice  = "nvidia-modeset"
-
-	nvidiaDeviceRE            = `^nvidia[0-9]*$`
-	gpuCheckInterval          = 10 * time.Second
+	eicasDeviceRE             = `^card[0-9]*$`
+	tpuCheckInterval          = 10 * time.Second
 	pluginSocketCheckInterval = 1 * time.Second
-
-	nvidiaMpsDir       = "/tmp/nvidia-mps"
-	mpsControlBin      = "/usr/local/nvidia/bin/nvidia-cuda-mps-control"
-	mpsActiveThreadCmd = "get_default_active_thread_percentage"
-	mpsMemLimitEnv     = "CUDA_MPS_PINNED_DEVICE_MEM_LIMIT"
-	mpsThreadLimitEnv  = "CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"
 )
 
 var (
-	resourceName = "nvidia.com/gpu"
+	resourceName = "eicas.com/tpu"
 )
 
-// GPUConfig stores the settings used to configure the GPUs on a node.
-type GPUConfig struct {
-	GPUPartitionSize string
-	// MaxTimeSharedClientsPerGPU is the number of the time-shared GPU resources to expose for each physical GPU.
-	// Deprecated in favor of GPUSharingConfig.
-	MaxTimeSharedClientsPerGPU int
-	// GPUSharingConfig informs how GPUs on this node can be shared between containers.
-	GPUSharingConfig GPUSharingConfig
-	// Xid error codes that will set the node to unhealthy
-	HealthCriticalXid []int
+// eicasTPUManager manages eicas tpu devices.
+type eicasTPUManager struct {
+	devDirectory string
+	mountPaths   []pluginapi.Mount
+	devices      map[string]pluginapi.Device
+	grpcServer   *grpc.Server
+	socket       string
+	stop         chan bool
+	devicesMutex sync.Mutex
+	Health       chan pluginapi.Device
 }
 
-type GPUSharingConfig struct {
-	// GPUSharingStrategy is the type of sharing strategy to enable on this node. Values are "time-sharing" or "mps".
-	GPUSharingStrategy gpusharing.GPUSharingStrategy
-	// MaxSharedClientsPerGPU is the maximum number of clients that are allowed to share a single GPU.
-	MaxSharedClientsPerGPU int
-}
+func NewEicasTPUManager(devDirectory string, mountPaths []pluginapi.Mount) *eicasTPUManager {
+	return &eicasTPUManager{
 
-func (config *GPUConfig) AddDefaultsAndValidate() error {
-	if config.MaxTimeSharedClientsPerGPU > 0 {
-		if config.GPUSharingConfig.GPUSharingStrategy != "" || config.GPUSharingConfig.MaxSharedClientsPerGPU > 0 {
-			glog.Infof("Both MaxTimeSharedClientsPerGPU and GPUSharingConfig are set, use the value of MaxTimeSharedClientsPerGPU")
-		}
-
-		config.GPUSharingConfig.GPUSharingStrategy = gpusharing.TimeSharing
-		config.GPUSharingConfig.MaxSharedClientsPerGPU = config.MaxTimeSharedClientsPerGPU
-	} else {
-		switch config.GPUSharingConfig.GPUSharingStrategy {
-		case gpusharing.TimeSharing, gpusharing.MPS:
-			if config.GPUSharingConfig.MaxSharedClientsPerGPU <= 0 {
-				return fmt.Errorf("MaxSharedClientsPerGPU should be > 0 for time-sharing or mps GPU sharing strategies")
-			}
-			break
-		case gpusharing.Undefined:
-			if config.GPUSharingConfig.MaxSharedClientsPerGPU > 0 {
-				return fmt.Errorf("GPU sharing strategy needs to be specified when MaxSharedClientsPerGPU > 0")
-			}
-		default:
-			return fmt.Errorf("invalid GPU Sharing strategy: %v, should be one of time-sharing or mps", config.GPUSharingConfig.GPUSharingStrategy)
-		}
-	}
-	gpusharing.SharingStrategy = config.GPUSharingConfig.GPUSharingStrategy
-	return nil
-}
-
-func (config *GPUConfig) AddHealthCriticalXid() error {
-	xidConfig := os.Getenv("XID_CONFIG")
-	if len(xidConfig) == 0 {
-		glog.Infof("There is no Xid config specified ")
-		return nil
-	}
-
-	glog.Infof("Detect HealthCriticalXid : %s ", xidConfig)
-	xidStrs := strings.Split(xidConfig, ",")
-	xidArry := make([]int, len(xidStrs))
-	var err error
-	for i := range xidArry {
-		xidStr := strings.TrimSpace(xidStrs[i])
-		xidArry[i], err = strconv.Atoi(xidStr)
-		if err != nil {
-			return fmt.Errorf("Invalid HealthCriticalXid input : %v", err)
-		}
-	}
-	config.HealthCriticalXid = xidArry
-	return nil
-}
-
-// nvidiaGPUManager manages nvidia gpu devices.
-type nvidiaGPUManager struct {
-	devDirectory        string
-	mountPaths          []pluginapi.Mount
-	defaultDevices      []string
-	devices             map[string]pluginapi.Device
-	grpcServer          *grpc.Server
-	socket              string
-	stop                chan bool
-	devicesMutex        sync.Mutex
-	nvidiaCtlDevicePath string
-	nvidiaUVMDevicePath string
-	gpuConfig           GPUConfig
-	migDeviceManager    mig.DeviceManager
-	Health              chan pluginapi.Device
-	totalMemPerGPU      uint64 // Total memory available per GPU (in MB)
-}
-
-func NewNvidiaGPUManager(devDirectory, procDirectory string, mountPaths []pluginapi.Mount, gpuConfig GPUConfig) *nvidiaGPUManager {
-	return &nvidiaGPUManager{
-
-		devDirectory:        devDirectory,
-		mountPaths:          mountPaths,
-		devices:             make(map[string]pluginapi.Device),
-		stop:                make(chan bool),
-		nvidiaCtlDevicePath: path.Join(devDirectory, nvidiaCtlDevice),
-		nvidiaUVMDevicePath: path.Join(devDirectory, nvidiaUVMDevice),
-		gpuConfig:           gpuConfig,
-		migDeviceManager:    mig.NewDeviceManager(devDirectory, procDirectory),
-		Health:              make(chan pluginapi.Device),
+		devDirectory: devDirectory,
+		mountPaths:   mountPaths,
+		devices:      make(map[string]pluginapi.Device),
+		stop:         make(chan bool),
+		Health:       make(chan pluginapi.Device),
 	}
 }
 
-// ListPhysicalDevices lists all physical GPU devices (including partitions) available on this node.
-func (ngm *nvidiaGPUManager) ListPhysicalDevices() map[string]pluginapi.Device {
-	if ngm.gpuConfig.GPUPartitionSize == "" {
-		return ngm.devices
-	}
-	return ngm.migDeviceManager.ListGPUPartitionDevices()
+func (etm *eicasTPUManager) ListPhysicalDevices() map[string]pluginapi.Device {
+	return etm.devices
 }
 
-func (ngm *nvidiaGPUManager) ListHealthCriticalXid() []int {
-	return ngm.gpuConfig.HealthCriticalXid
+func (etm *eicasTPUManager) ListDevices() map[string]pluginapi.Device {
+	physicalGPUDevices := etm.ListPhysicalDevices()
+	return physicalGPUDevices
 }
 
-// ListDevices lists all GPU devices available on this node.
-func (ngm *nvidiaGPUManager) ListDevices() map[string]pluginapi.Device {
-	physicalGPUDevices := ngm.ListPhysicalDevices()
-
-	switch {
-	case ngm.gpuConfig.GPUSharingConfig.MaxSharedClientsPerGPU > 0:
-		virtualGPUDevices := map[string]pluginapi.Device{}
-		for _, device := range physicalGPUDevices {
-			for i := 0; i < ngm.gpuConfig.GPUSharingConfig.MaxSharedClientsPerGPU; i++ {
-				virtualDeviceID := fmt.Sprintf("%s/vgpu%d", device.ID, i)
-				// When sharing GPUs, the virtual GPU device will inherit the health status from its underlying physical GPU device.
-				virtualGPUDevices[virtualDeviceID] = pluginapi.Device{ID: virtualDeviceID, Health: device.Health}
-			}
-		}
-		return virtualGPUDevices
-	default:
-		return physicalGPUDevices
-	}
-}
-
-// DeviceSpec returns the device spec that inclues list of devices to allocate for a deviceID.
-func (ngm *nvidiaGPUManager) DeviceSpec(deviceID string) ([]pluginapi.DeviceSpec, error) {
+func (etm *eicasTPUManager) DeviceSpec(deviceID string) ([]pluginapi.DeviceSpec, error) {
 	deviceSpecs := make([]pluginapi.DeviceSpec, 0)
-	// With GPU sharing, the input deviceID will be a virtual Device ID.
-	// We need to map it to the corresponding physical device ID.
-	if ngm.gpuConfig.GPUSharingConfig.MaxSharedClientsPerGPU > 0 {
-		physicalDeviceID, err := gpusharing.VirtualToPhysicalDeviceID(deviceID)
-		if err != nil {
-			return nil, err
-		}
-		deviceID = physicalDeviceID
+	dev, ok := etm.devices[deviceID]
+	if !ok {
+		return deviceSpecs, fmt.Errorf("invalid allocation request with non-existing device %s", deviceID)
 	}
-	if ngm.gpuConfig.GPUPartitionSize == "" {
-		dev, ok := ngm.devices[deviceID]
-		if !ok {
-			return deviceSpecs, fmt.Errorf("invalid allocation request with non-existing device %s", deviceID)
-		}
-		if dev.Health != pluginapi.Healthy {
-			return deviceSpecs, fmt.Errorf("invalid allocation request with unhealthy device %s", deviceID)
-		}
-		deviceSpecs = append(deviceSpecs, pluginapi.DeviceSpec{
-			HostPath:      path.Join(ngm.devDirectory, deviceID),
-			ContainerPath: path.Join(ngm.devDirectory, deviceID),
-			Permissions:   "mrw",
-		})
-		return deviceSpecs, nil
+	if dev.Health != pluginapi.Healthy {
+		return deviceSpecs, fmt.Errorf("invalid allocation request with unhealthy device %s", deviceID)
 	}
-	return ngm.migDeviceManager.DeviceSpec(deviceID)
+	deviceSpecs = append(deviceSpecs, pluginapi.DeviceSpec{
+		HostPath:      path.Join(etm.devDirectory, deviceID),
+		ContainerPath: path.Join(etm.devDirectory, deviceID),
+		Permissions:   "mrw",
+	})
+	return deviceSpecs, nil
 }
 
-// Discovers all NVIDIA GPU devices available on the local node by walking nvidiaGPUManager's devDirectory.
-func (ngm *nvidiaGPUManager) discoverGPUs() error {
-	reg := regexp.MustCompile(nvidiaDeviceRE)
-	files, err := ioutil.ReadDir(ngm.devDirectory)
+func (etm *eicasTPUManager) discoverTPUs() error {
+	reg := regexp.MustCompile(eicasDeviceRE)
+	files, err := ioutil.ReadDir(etm.devDirectory)
 	if err != nil {
 		return err
 	}
 	for _, f := range files {
 		if f.IsDir() {
+			if reg.MatchString(f.Name()) {
+				glog.V(3).Infof("Found Eicas TPU %q\n", f.Name())
+				etm.SetDeviceHealth(f.Name(), pluginapi.Healthy)
+			}
+		} else {
 			continue
 		}
-		if reg.MatchString(f.Name()) {
-			glog.V(3).Infof("Found Nvidia GPU %q\n", f.Name())
-			ngm.SetDeviceHealth(f.Name(), pluginapi.Healthy)
-		}
+
 	}
 	return nil
 }
 
-func (ngm *nvidiaGPUManager) hasAdditionalGPUsInstalled() bool {
-	ngm.devicesMutex.Lock()
-	originalDeviceCount := len(ngm.devices)
-	ngm.devicesMutex.Unlock()
-	deviceCount, err := ngm.discoverNumGPUs()
+func (etm *eicasTPUManager) hasAdditionalTPUsInstalled() bool {
+	etm.devicesMutex.Lock()
+	originalDeviceCount := len(etm.devices)
+	etm.devicesMutex.Unlock()
+	deviceCount, err := etm.discoverNumTPUs()
 	if err != nil {
 		glog.Errorln(err)
 		return false
 	}
 	if deviceCount > originalDeviceCount {
-		glog.Infof("Found %v GPUs, while only %v are registered. Stopping device-plugin server.", deviceCount, originalDeviceCount)
+		glog.Infof("Found %v TPUs, while only %v are registered. Stopping device-plugin server.", deviceCount, originalDeviceCount)
 		return true
 	}
 	return false
 }
 
-func (ngm *nvidiaGPUManager) discoverNumGPUs() (int, error) {
-	reg := regexp.MustCompile(nvidiaDeviceRE)
+func (etm *eicasTPUManager) discoverNumTPUs() (int, error) {
+	reg := regexp.MustCompile(eicasDeviceRE)
 	deviceCount := 0
-	files, err := ioutil.ReadDir(ngm.devDirectory)
+	files, err := ioutil.ReadDir(etm.devDirectory)
 	if err != nil {
 		return deviceCount, err
 	}
 	for _, f := range files {
 		if f.IsDir() {
+			if reg.MatchString(f.Name()) {
+				deviceCount++
+			}
+		} else {
 			continue
 		}
-		if reg.MatchString(f.Name()) {
-			deviceCount++
-		}
+
 	}
 	return deviceCount, nil
 }
 
-// isMpsHealthy checks whether MPS control daemon is running and healhty on the node.
-func (ngm *nvidiaGPUManager) isMpsHealthy() error {
-	var out bytes.Buffer
-	reader, writer := io.Pipe()
-	defer writer.Close()
-	defer reader.Close()
-
-	mpsCmd := exec.Command(mpsControlBin)
-	mpsCmd.Stdin = reader
-	mpsCmd.Stdout = &out
-
-	err := mpsCmd.Start()
-	if err != nil {
-		return fmt.Errorf("failed to start NVIDIA MPS health check command: %v", err)
-	}
-
-	writer.Write([]byte(mpsActiveThreadCmd))
-	writer.Close()
-
-	err = mpsCmd.Wait()
-	if err != nil {
-		return fmt.Errorf("failed to health check NVIDIA MPS: %v", err)
-	}
-
-	reader.Close()
-	glog.Infof("MPS is healthy, active thread percentage = %s", out.String())
-	return nil
-}
-
-func (ngm *nvidiaGPUManager) Envs(numDevicesRequested int) map[string]string {
-	if ngm.gpuConfig.GPUSharingConfig.GPUSharingStrategy == gpusharing.MPS {
-		activeThreadLimit := numDevicesRequested * 100 / ngm.gpuConfig.GPUSharingConfig.MaxSharedClientsPerGPU
-		memoryLimit := uint64(numDevicesRequested) * ngm.totalMemPerGPU / uint64(ngm.gpuConfig.GPUSharingConfig.MaxSharedClientsPerGPU)
-
-		return map[string]string{
-			mpsThreadLimitEnv: strconv.Itoa(activeThreadLimit),
-			mpsMemLimitEnv:    fmt.Sprintf("%dMB", memoryLimit),
-		}
-
-	}
-	return map[string]string{}
-}
-
 // SetDeviceHealth sets the health status for a GPU device or partition if MIG is enabled
-func (ngm *nvidiaGPUManager) SetDeviceHealth(name string, health string) {
-	ngm.devicesMutex.Lock()
-	defer ngm.devicesMutex.Unlock()
+func (etm *eicasTPUManager) SetDeviceHealth(name string, health string) {
+	etm.devicesMutex.Lock()
+	defer etm.devicesMutex.Unlock()
 
-	reg := regexp.MustCompile(nvidiaDeviceRE)
+	reg := regexp.MustCompile(eicasDeviceRE)
 	if reg.MatchString(name) {
-		ngm.devices[name] = pluginapi.Device{ID: name, Health: health}
-	} else {
-		ngm.migDeviceManager.SetDeviceHealth(name, health)
+		etm.devices[name] = pluginapi.Device{ID: name, Health: health}
 	}
 }
 
-// Checks if the two nvidia paths exist. Could be used to verify if the driver
-// has been installed correctly
-func (ngm *nvidiaGPUManager) CheckDevicePaths() error {
-	if _, err := os.Stat(ngm.nvidiaCtlDevicePath); err != nil {
-		return err
-	}
-
-	if _, err := os.Stat(ngm.nvidiaUVMDevicePath); err != nil {
+func (etm *eicasTPUManager) CheckDevicePaths() error {
+	if _, err := os.Stat(etm.devDirectory); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Discovers Nvidia GPU devices and sets up device access environment.
-func (ngm *nvidiaGPUManager) Start() error {
-	ngm.defaultDevices = []string{ngm.nvidiaCtlDevicePath, ngm.nvidiaUVMDevicePath}
-
-	nvidiaModesetDevicePath := path.Join(ngm.devDirectory, nvidiaModesetDevice)
-	if _, err := os.Stat(nvidiaModesetDevicePath); err == nil {
-		ngm.defaultDevices = append(ngm.defaultDevices, nvidiaModesetDevicePath)
-	}
-
-	nvidiaUVMToolsDevicePath := path.Join(ngm.devDirectory, nvidiaUVMToolsDevice)
-	if _, err := os.Stat(nvidiaUVMToolsDevicePath); err == nil {
-		ngm.defaultDevices = append(ngm.defaultDevices, nvidiaUVMToolsDevicePath)
-	}
-
+func (etm *eicasTPUManager) Start() error {
 	//设备发现
-	if err := ngm.discoverGPUs(); err != nil {
+	if err := etm.discoverTPUs(); err != nil {
 		return err
-	}
-	if ngm.gpuConfig.GPUPartitionSize != "" {
-		if err := ngm.migDeviceManager.Start(ngm.gpuConfig.GPUPartitionSize); err != nil {
-			return fmt.Errorf("failed to start mig device manager: %v", err)
-		}
-	}
-
-	if ngm.gpuConfig.GPUSharingConfig.GPUSharingStrategy == "mps" {
-		if err := ngm.isMpsHealthy(); err != nil {
-			return fmt.Errorf("NVIDIA MPS is not running on this node: %v", err)
-		}
-		ngm.mountPaths = append(ngm.mountPaths, pluginapi.Mount{HostPath: nvidiaMpsDir, ContainerPath: nvidiaMpsDir, ReadOnly: false})
-		var err error
-		ngm.totalMemPerGPU, err = totalMemPerGPU()
-		if err != nil {
-			return fmt.Errorf("failed to query total memory available per GPU: %v", err)
-		}
 	}
 	return nil
 }
 
-// totalMemPerGPU returns the GPU memory available on each GPU device.
-func totalMemPerGPU() (uint64, error) {
-	count, ret := nvml.DeviceGetCount()
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("failed to enumerate devices: %v", nvml.ErrorString(ret))
-	}
-	if count <= 0 {
-		return 0, fmt.Errorf("no GPUs on node, count: %d", count)
-	}
-	device, ret := nvml.DeviceGetHandleByIndex(0)
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("failed to query GPU with nvml: %v", nvml.ErrorString(ret))
-	}
-	memory, ret := device.GetMemoryInfo()
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("failed to get GPU memory: %v", nvml.ErrorString(ret))
-	}
-	return memory.Total, nil
-}
-
-func (ngm *nvidiaGPUManager) Serve(pMountPath, kEndpoint, pluginEndpoint string) {
+func (etm *eicasTPUManager) Serve(pMountPath, kEndpoint, pluginEndpoint string) {
 	registerWithKubelet := false
 	if _, err := os.Stat(path.Join(pMountPath, kEndpoint)); err == nil {
 		glog.Infof("will use alpha API\n")
@@ -418,8 +183,8 @@ func (ngm *nvidiaGPUManager) Serve(pMountPath, kEndpoint, pluginEndpoint string)
 
 	for {
 		select {
-		case <-ngm.stop:
-			close(ngm.stop)
+		case <-etm.stop:
+			close(etm.stop)
 			return
 		default:
 			{
@@ -429,11 +194,11 @@ func (ngm *nvidiaGPUManager) Serve(pMountPath, kEndpoint, pluginEndpoint string)
 				if err != nil {
 					glog.Fatalf("starting device-plugin server failed: %v", err)
 				}
-				ngm.socket = pluginEndpointPath
-				ngm.grpcServer = grpc.NewServer()
+				etm.socket = pluginEndpointPath
+				etm.grpcServer = grpc.NewServer()
 
 				// Registers the supported versions of service.
-				pluginbeta := &pluginServiceV1Beta1{ngm: ngm}
+				pluginbeta := &pluginServiceV1Beta1{etm: etm}
 				pluginbeta.RegisterService()
 
 				var wg sync.WaitGroup
@@ -442,20 +207,20 @@ func (ngm *nvidiaGPUManager) Serve(pMountPath, kEndpoint, pluginEndpoint string)
 				go func() {
 					defer wg.Done()
 					// Blocking call to accept incoming connections.
-					err := ngm.grpcServer.Serve(lis)
+					err := etm.grpcServer.Serve(lis)
 					glog.Errorf("device-plugin server stopped serving: %v", err)
 				}()
 
 				if registerWithKubelet {
 					// Wait till the grpcServer is ready to serve services.
-					for len(ngm.grpcServer.GetServiceInfo()) <= 0 {
+					for len(etm.grpcServer.GetServiceInfo()) <= 0 {
 						time.Sleep(1 * time.Second)
 					}
 					glog.Infoln("device-plugin server started serving")
 					// Registers with Kubelet.
 					err = RegisterWithV1Beta1Kubelet(path.Join(pMountPath, kEndpoint), pluginEndpoint, resourceName)
 					if err != nil {
-						ngm.grpcServer.Stop()
+						etm.grpcServer.Stop()
 						wg.Wait()
 						glog.Fatal(err)
 					}
@@ -465,7 +230,7 @@ func (ngm *nvidiaGPUManager) Serve(pMountPath, kEndpoint, pluginEndpoint string)
 				// This is checking if the plugin socket was deleted
 				// and also if there are additional GPU devices installed.
 				// If so, stop the grpc server and start the whole thing again.
-				gpuCheck := time.NewTicker(gpuCheckInterval)
+				gpuCheck := time.NewTicker(tpuCheckInterval)
 				pluginSocketCheck := time.NewTicker(pluginSocketCheckInterval)
 				defer gpuCheck.Stop()
 				defer pluginSocketCheck.Stop()
@@ -476,14 +241,14 @@ func (ngm *nvidiaGPUManager) Serve(pMountPath, kEndpoint, pluginEndpoint string)
 						if _, err := os.Lstat(pluginEndpointPath); err != nil {
 							glog.Infof("stopping device-plugin server at: %s\n", pluginEndpointPath)
 							glog.Errorln(err)
-							ngm.grpcServer.Stop()
+							etm.grpcServer.Stop()
 							break statusCheck
 						}
 					case <-gpuCheck.C:
-						if ngm.hasAdditionalGPUsInstalled() {
-							ngm.grpcServer.Stop()
+						if etm.hasAdditionalTPUsInstalled() {
+							etm.grpcServer.Stop()
 							for {
-								err := ngm.discoverGPUs()
+								err := etm.discoverTPUs()
 								if err == nil {
 									break statusCheck
 								}
@@ -498,13 +263,13 @@ func (ngm *nvidiaGPUManager) Serve(pMountPath, kEndpoint, pluginEndpoint string)
 	}
 }
 
-func (ngm *nvidiaGPUManager) Stop() error {
-	glog.Infof("removing device plugin socket %s\n", ngm.socket)
-	if err := os.Remove(ngm.socket); err != nil && !os.IsNotExist(err) {
+func (etm *eicasTPUManager) Stop() error {
+	glog.Infof("removing device plugin socket %s\n", etm.socket)
+	if err := os.Remove(etm.socket); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	ngm.stop <- true
-	<-ngm.stop
-	close(ngm.Health)
+	etm.stop <- true
+	<-etm.stop
+	close(etm.Health)
 	return nil
 }

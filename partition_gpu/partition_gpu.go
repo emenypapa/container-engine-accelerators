@@ -18,13 +18,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/golang/glog"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
-	"syscall"
-
-	"github.com/golang/glog"
 )
 
 var (
@@ -171,7 +169,7 @@ func enableMigMode() error {
 
 func rebootNode() error {
 	// Gracefully reboot systemd: https://man7.org/linux/man-pages/man1/systemd.1.html#SIGNALS
-	return syscall.Kill(1, SIGRTMIN+5)
+	return fmt.Errorf("err")
 }
 
 func cleanupAllGPUPartitions() error {

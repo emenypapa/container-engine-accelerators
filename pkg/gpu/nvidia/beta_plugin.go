@@ -24,12 +24,10 @@ import (
 	"google.golang.org/grpc"
 
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
-
-	"github.com/GoogleCloudPlatform/container-engine-accelerators/pkg/gpu/nvidia/gpusharing"
 )
 
 type pluginServiceV1Beta1 struct {
-	ngm *nvidiaGPUManager
+	etm *eicasTPUManager
 }
 
 func (s *pluginServiceV1Beta1) GetDevicePluginOptions(ctx context.Context, e *pluginapi.Empty) (*pluginapi.DevicePluginOptions, error) {
@@ -43,9 +41,9 @@ func (s *pluginServiceV1Beta1) ListAndWatch(emtpy *pluginapi.Empty, stream plugi
 	}
 	for {
 		select {
-		case d := <-s.ngm.Health:
+		case d := <-s.etm.Health:
 			glog.Infof("device-plugin: %s device marked as %s", d.ID, d.Health)
-			s.ngm.SetDeviceHealth(d.ID, d.Health)
+			s.etm.SetDeviceHealth(d.ID, d.Health)
 			if err := s.sendDevices(stream); err != nil {
 				return err
 			}
@@ -57,14 +55,14 @@ func (s *pluginServiceV1Beta1) Allocate(ctx context.Context, requests *pluginapi
 	resps := new(pluginapi.AllocateResponse)
 	for _, rqt := range requests.ContainerRequests {
 		// Validate if the request is for shared GPUs and check if the request meets the GPU sharing conditions.
-		if err := gpusharing.ValidateRequest(rqt.DevicesIDs, len(s.ngm.ListPhysicalDevices())); err != nil {
-			return nil, err
-		}
+		//if err := gpusharing.ValidateRequest(rqt.DevicesIDs, len(s.etm.ListPhysicalDevices())); err != nil {
+		//	return nil, err
+		//}
 
 		resp := new(pluginapi.ContainerAllocateResponse)
 		// Add all requested devices to Allocate Response
 		for _, id := range rqt.DevicesIDs {
-			devices, err := s.ngm.DeviceSpec(id)
+			devices, err := s.etm.DeviceSpec(id)
 			if err != nil {
 				return nil, err
 			}
@@ -73,20 +71,10 @@ func (s *pluginServiceV1Beta1) Allocate(ctx context.Context, requests *pluginapi
 				resp.Devices = append(resp.Devices, &devices[i])
 			}
 		}
-		// Add all default devices to Allocate Response
-		for _, d := range s.ngm.defaultDevices {
-			resp.Devices = append(resp.Devices, &pluginapi.DeviceSpec{
-				HostPath:      d,
-				ContainerPath: d,
-				Permissions:   "mrw",
-			})
+		for i := range s.etm.mountPaths {
+			resp.Mounts = append(resp.Mounts, &s.etm.mountPaths[i])
 		}
 
-		for i := range s.ngm.mountPaths {
-			resp.Mounts = append(resp.Mounts, &s.ngm.mountPaths[i])
-		}
-
-		resp.Envs = s.ngm.Envs(len(rqt.DevicesIDs))
 		resps.ContainerResponses = append(resps.ContainerResponses, resp)
 	}
 	return resps, nil
@@ -103,7 +91,7 @@ func (s *pluginServiceV1Beta1) GetPreferredAllocation(context.Context, *pluginap
 }
 
 func (s *pluginServiceV1Beta1) RegisterService() {
-	pluginapi.RegisterDevicePluginServer(s.ngm.grpcServer, s)
+	pluginapi.RegisterDevicePluginServer(s.etm.grpcServer, s)
 }
 
 // TODO: remove this function once we move to probe based registration.
@@ -132,13 +120,13 @@ func RegisterWithV1Beta1Kubelet(kubeletEndpoint, pluginEndpoint, resourceName st
 
 func (s *pluginServiceV1Beta1) sendDevices(stream pluginapi.DevicePlugin_ListAndWatchServer) error {
 	resp := new(pluginapi.ListAndWatchResponse)
-	for _, dev := range s.ngm.ListDevices() {
+	for _, dev := range s.etm.ListDevices() {
 		resp.Devices = append(resp.Devices, &pluginapi.Device{ID: dev.ID, Health: dev.Health})
 	}
 	glog.Infof("ListAndWatch: send devices %v\n", resp)
 	if err := stream.Send(resp); err != nil {
 		glog.Errorf("device-plugin: cannot update device states: %v\n", err)
-		s.ngm.grpcServer.Stop()
+		s.etm.grpcServer.Stop()
 		return err
 	}
 	return nil
