@@ -26,20 +26,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	//"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-type metricsCollector interface {
-	collectGPUDevice(deviceName string) (*nvml.Device, error)
-	collectDutyCycle(string, time.Duration) (uint, error)
-	collectGpuMetricsInfo(device string, d *nvml.Device) (metricsInfo, error)
-}
-
-var gmc metricsCollector
+//type metricsCollector interface {
+//	collectGPUDevice(deviceName string) (*nvml.Device, error)
+//	collectDutyCycle(string, time.Duration) (uint, error)
+//	collectGpuMetricsInfo(device string, d *nvml.Device) (metricsInfo, error)
+//}
+//
+//var gmc metricsCollector
 
 type mCollector struct{}
 
@@ -52,17 +52,17 @@ type metricsInfo struct {
 	deviceModel string
 }
 
-func (t *mCollector) collectGPUDevice(deviceName string) (*nvml.Device, error) {
-	return DeviceFromName(deviceName)
-}
+//func (t *mCollector) collectGPUDevice(deviceName string) (*nvml.Device, error) {
+//	return DeviceFromName(deviceName)
+//}
 
-func (t *mCollector) collectDutyCycle(uuid string, since time.Duration) (uint, error) {
-	return AverageGPUUtilization(uuid, since)
-}
+//func (t *mCollector) collectDutyCycle(uuid string, since time.Duration) (uint, error) {
+//	return AverageGPUUtilization(uuid, since)
+//}
 
-func (t *mCollector) collectGpuMetricsInfo(device string, d *nvml.Device) (metricsInfo, error) {
-	return getGpuMetricsInfo(device, d)
-}
+//func (t *mCollector) collectGpuMetricsInfo(device string, d *nvml.Device) (metricsInfo, error) {
+//	return getGpuMetricsInfo(device, d)
+//}
 
 var (
 	// UsageRateNodeTpu reports the percent of time when the TPU was actively processing per Node.
@@ -122,7 +122,7 @@ func (m *MetricServer) Start() error {
 }
 
 func (m *MetricServer) collectMetrics() {
-	gmc = &mCollector{}
+	//gmc = &mCollector{}
 	t := time.NewTicker(time.Millisecond * time.Duration(m.collectionInterval))
 	defer t.Stop()
 
@@ -134,31 +134,31 @@ func (m *MetricServer) collectMetrics() {
 	}
 }
 
-func getGpuMetricsInfo(device string, d *nvml.Device) (metricsInfo, error) {
-	uuid, ret := d.GetUUID()
-	if ret != nvml.SUCCESS {
-		return metricsInfo{}, fmt.Errorf("failed to get GPU UUID: %v", nvml.ErrorString(ret))
-	}
-	deviceModel, ret := d.GetName()
-	if ret != nvml.SUCCESS {
-		return metricsInfo{}, fmt.Errorf("failed to get GPU device model: %v", nvml.ErrorString(ret))
-	}
-
-	mem, ret := d.GetMemoryInfo()
-	if ret != nvml.SUCCESS {
-		return metricsInfo{}, fmt.Errorf("failed to get GPU memory: %v", nvml.ErrorString(ret))
-	}
-	dutyCycle, err := gmc.collectDutyCycle(uuid, time.Second*10)
-	if err != nil {
-		return metricsInfo{}, fmt.Errorf("failed to get dutyCycle: %v", err)
-	}
-	return metricsInfo{
-		dutyCycle:   dutyCycle,
-		usedMemory:  mem.Used,
-		totalMemory: mem.Total,
-		uuid:        uuid,
-		deviceModel: deviceModel}, nil
-}
+//func getGpuMetricsInfo(device string, d *nvml.Device) (metricsInfo, error) {
+//	uuid, ret := d.GetUUID()
+//	if ret != nvml.SUCCESS {
+//		return metricsInfo{}, fmt.Errorf("failed to get GPU UUID: %v", nvml.ErrorString(ret))
+//	}
+//	deviceModel, ret := d.GetName()
+//	if ret != nvml.SUCCESS {
+//		return metricsInfo{}, fmt.Errorf("failed to get GPU device model: %v", nvml.ErrorString(ret))
+//	}
+//
+//	mem, ret := d.GetMemoryInfo()
+//	if ret != nvml.SUCCESS {
+//		return metricsInfo{}, fmt.Errorf("failed to get GPU memory: %v", nvml.ErrorString(ret))
+//	}
+//	dutyCycle, err := gmc.collectDutyCycle(uuid, time.Second*10)
+//	if err != nil {
+//		return metricsInfo{}, fmt.Errorf("failed to get dutyCycle: %v", err)
+//	}
+//	return metricsInfo{
+//		dutyCycle:   dutyCycle,
+//		usedMemory:  mem.Used,
+//		totalMemory: mem.Total,
+//		uuid:        uuid,
+//		deviceModel: deviceModel}, nil
+//}
 
 func (m *MetricServer) updateMetrics() {
 	m.resetMetricsIfNeeded()

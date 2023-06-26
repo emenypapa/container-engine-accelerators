@@ -20,7 +20,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	//"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/EicasCloudPlatform/container-engine-accelerators/pkg/tpu/eicas/gpusharing"
 	"github.com/golang/glog"
@@ -36,7 +36,7 @@ var (
 	//tpuPathRegex    = regexp.MustCompile("/sys/class/bm-sophon/(bm-sophon[0-9]+)$")
 	connectionTimeout = 10 * time.Second
 
-	gpuDevices map[string]*nvml.Device
+	//gpuDevices map[string]*nvml.Device
 )
 
 // ContainerID uniquely identifies a container.
@@ -99,41 +99,41 @@ func GetDevicesForAllContainers() (map[ContainerID][]string, error) {
 	return containerDevices, nil
 }
 
-func GetAllGpuDevices() map[string]*nvml.Device {
-	return gpuDevices
-}
+//func GetAllGpuDevices() map[string]*nvml.Device {
+//	return gpuDevices
+//}
 
 // DiscoverGPUDevices discovers GPUs attached to the node, and updates `gpuDevices` map.
-func DiscoverGPUDevices() error {
-	count, ret := nvml.DeviceGetCount()
-	if ret != nvml.SUCCESS {
-		return fmt.Errorf("failed to get device count: %s", nvml.ErrorString(ret))
-	}
-
-	glog.Infof("Found %d GPU devices", count)
-	gpuDevices = make(map[string]*nvml.Device)
-	for i := int(0); i < count; i++ {
-		device, ret := nvml.DeviceGetHandleByIndex(i)
-		if ret != nvml.SUCCESS {
-			return fmt.Errorf("failed to read device with index %d: %v", i, nvml.ErrorString(ret))
-		}
-		minor, ret := device.GetMinorNumber()
-		if ret != nvml.SUCCESS {
-			glog.Errorf("Invalid GPU device minor number found. Skipping this device")
-		}
-		deviceName := fmt.Sprintf("eicas%d", minor)
-		glog.Infof("Found device %s for metrics collection", deviceName)
-		gpuDevices[deviceName] = &device
-	}
-	return nil
-}
+//func DiscoverGPUDevices() error {
+//	count, ret := nvml.DeviceGetCount()
+//	if ret != nvml.SUCCESS {
+//		return fmt.Errorf("failed to get device count: %s", nvml.ErrorString(ret))
+//	}
+//
+//	glog.Infof("Found %d GPU devices", count)
+//	gpuDevices = make(map[string]*nvml.Device)
+//	for i := int(0); i < count; i++ {
+//		device, ret := nvml.DeviceGetHandleByIndex(i)
+//		if ret != nvml.SUCCESS {
+//			return fmt.Errorf("failed to read device with index %d: %v", i, nvml.ErrorString(ret))
+//		}
+//		minor, ret := device.GetMinorNumber()
+//		if ret != nvml.SUCCESS {
+//			glog.Errorf("Invalid GPU device minor number found. Skipping this device")
+//		}
+//		deviceName := fmt.Sprintf("eicas%d", minor)
+//		glog.Infof("Found device %s for metrics collection", deviceName)
+//		gpuDevices[deviceName] = &device
+//	}
+//	return nil
+//}
 
 // DeviceFromName returns the device object for a given device name.
-func DeviceFromName(deviceName string) (*nvml.Device, error) {
-	device, ok := gpuDevices[deviceName]
-	if !ok {
-		return &nvml.Device{}, fmt.Errorf("device %s not found", deviceName)
-	}
-
-	return device, nil
-}
+//func DeviceFromName(deviceName string) (*nvml.Device, error) {
+//	device, ok := gpuDevices[deviceName]
+//	if !ok {
+//		return &nvml.Device{}, fmt.Errorf("device %s not found", deviceName)
+//	}
+//
+//	return device, nil
+//}
