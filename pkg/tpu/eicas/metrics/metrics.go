@@ -110,7 +110,6 @@ func (m *MetricServer) Start() error {
 	//}
 
 	go func() {
-		prometheus.MustRegister(UsageRateNodeTpu)
 		http.Handle(m.metricsEndpointPath, promhttp.Handler())
 		err := http.ListenAndServe(fmt.Sprintf(":%d", m.port), nil)
 		if err != nil {
