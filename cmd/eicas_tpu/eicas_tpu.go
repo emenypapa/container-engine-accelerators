@@ -15,6 +15,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/EicasCloudPlatform/container-engine-accelerators/pkg/tpu/eicas/metrics"
 	"time"
@@ -37,6 +38,7 @@ const (
 )
 
 func main() {
+	flag.Parse()
 	glog.Infoln("device-plugin started")
 	mountPaths := []pluginapi.Mount{
 		{HostPath: hostPathPrefix, ContainerPath: containerPathPrefix, ReadOnly: true}}
