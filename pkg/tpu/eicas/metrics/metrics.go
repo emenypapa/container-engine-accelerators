@@ -34,7 +34,8 @@ import (
 )
 
 type HostMonitor struct {
-	tpuDesc *prometheus.Desc
+	tpuDesc     *prometheus.Desc
+	labelValues []string
 }
 
 func NewHostMonitor() *HostMonitor {
@@ -45,8 +46,9 @@ func NewHostMonitor() *HostMonitor {
 			//动态标签key列表
 			[]string{"instance_id", "instance_name"},
 			//静态标签
-			prometheus.Labels{"module": "cpu"},
+			prometheus.Labels{"module": "tpu"},
 		),
+		labelValues: []string{"myhost", "yunwei"},
 	}
 }
 
@@ -78,7 +80,7 @@ func (h *HostMonitor) Collect(ch chan<- prometheus.Metric) {
 		}
 
 	}
-	ch <- prometheus.MustNewConstMetric(h.tpuDesc, prometheus.GaugeValue, float64(value))
+	ch <- prometheus.MustNewConstMetric(h.tpuDesc, prometheus.GaugeValue, float64(value), h.labelValues...)
 
 }
 
@@ -161,7 +163,7 @@ func (m *MetricServer) Start() error {
 	go func() {
 		registry := prometheus.NewRegistry()
 		registry.MustRegister(NewHostMonitor())
-		http.Handle(m.metricsEndpointPath, promhttp.Handler())
+		http.Handle(m.metricsEndpointPath, promhttp.HandlerFor(registry, promhttp.HandlerOpts{Registry: registry}))
 		err := http.ListenAndServe(fmt.Sprintf(":%d", m.port), nil)
 		if err != nil {
 			glog.Infof("Failed to start metric server: %v", err)
