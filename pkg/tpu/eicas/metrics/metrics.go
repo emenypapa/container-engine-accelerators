@@ -15,8 +15,15 @@
 package metrics
 
 import (
+	"bufio"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"os"
+	"path"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -37,6 +44,7 @@ var gmc metricsCollector
 type mCollector struct{}
 
 type metricsInfo struct {
+	usageRate   uint
 	dutyCycle   uint
 	usedMemory  uint64
 	totalMemory uint64
@@ -57,61 +65,13 @@ func (t *mCollector) collectGpuMetricsInfo(device string, d *nvml.Device) (metri
 }
 
 var (
-	// DutyCycleNodeGpu reports the percent of time when the GPU was actively processing per Node.
-	DutyCycleNodeGpu = promauto.NewGaugeVec(
+	// UsageRateNodeTpu reports the percent of time when the TPU was actively processing per Node.
+	UsageRateNodeTpu = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "duty_cycle_gpu_node",
-			Help: "Percent of time when the GPU was actively processing",
+			Name: "usage_rate_tpu_node",
+			Help: "Percent of time when the TPU was actively processing",
 		},
 		[]string{"make", "accelerator_id", "model"})
-
-	// MemoryTotalNodeGpu reports the total memory available on the GPU per Node.
-	MemoryTotalNodeGpu = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "memory_total_gpu_node",
-			Help: "Total memory available on the GPU in bytes",
-		},
-		[]string{"make", "accelerator_id", "model"})
-
-	// MemoryUsedNodeGpu reports GPU memory allocated per Node.
-	MemoryUsedNodeGpu = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "memory_used_gpu_node",
-			Help: "Allocated GPU memory in bytes",
-		},
-		[]string{"make", "accelerator_id", "model"})
-
-	// DutyCycle reports the percent of time when the GPU was actively processing per container.
-	DutyCycle = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "duty_cycle",
-			Help: "Percent of time when the GPU was actively processing",
-		},
-		[]string{"namespace", "pod", "container", "make", "accelerator_id", "model"})
-
-	// MemoryTotal reports the total memory available on the GPU per container.
-	MemoryTotal = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "memory_total",
-			Help: "Total memory available on the GPU in bytes",
-		},
-		[]string{"namespace", "pod", "container", "make", "accelerator_id", "model"})
-
-	// MemoryUsed reports GPU memory allocated per container.
-	MemoryUsed = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "memory_used",
-			Help: "Allocated GPU memory in bytes",
-		},
-		[]string{"namespace", "pod", "container", "make", "accelerator_id", "model"})
-
-	// AcceleratorRequests reports the number of GPU devices requested by the container.
-	AcceleratorRequests = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "request",
-			Help: "Number of accelerator devices requested by the container",
-		},
-		[]string{"namespace", "pod", "container", "resource_name"})
 )
 
 const metricsResetInterval = time.Minute
@@ -137,16 +97,17 @@ func NewMetricServer(collectionInterval, port int, metricsEndpointPath string) *
 func (m *MetricServer) Start() error {
 	glog.Infoln("Starting metrics server")
 
-	driverVersion, ret := nvml.SystemGetDriverVersion()
-	if ret != nvml.SUCCESS {
-		return fmt.Errorf("failed to query nvml: %v", nvml.ErrorString(ret))
-	}
-	glog.Infof("nvml initialized successfully. Driver version: %s", driverVersion)
-
-	err := DiscoverGPUDevices()
-	if err != nil {
-		return fmt.Errorf("failed to discover GPU devices: %v", err)
-	}
+	//校验nvml可用性，是否存在设备
+	//driverVersion, ret := nvml.SystemGetDriverVersion()
+	//if ret != nvml.SUCCESS {
+	//	return fmt.Errorf("failed to query nvml: %v", nvml.ErrorString(ret))
+	//}
+	//glog.Infof("nvml initialized successfully. Driver version: %s", driverVersion)
+	//
+	//err := DiscoverGPUDevices()
+	//if err != nil {
+	//	return fmt.Errorf("failed to discover GPU devices: %v", err)
+	//}
 
 	go func() {
 		http.Handle(m.metricsEndpointPath, promhttp.Handler())
@@ -168,13 +129,7 @@ func (m *MetricServer) collectMetrics() {
 	for {
 		select {
 		case <-t.C:
-			devices, err := GetDevicesForAllContainers()
-			if err != nil {
-				glog.Errorf("Failed to get devices for containers: %v", err)
-				continue
-			}
-			gpuDevices := GetAllGpuDevices()
-			m.updateMetrics(devices, gpuDevices)
+			m.updateMetrics()
 		}
 	}
 }
@@ -205,48 +160,75 @@ func getGpuMetricsInfo(device string, d *nvml.Device) (metricsInfo, error) {
 		deviceModel: deviceModel}, nil
 }
 
-func (m *MetricServer) updateMetrics(containerDevices map[ContainerID][]string, gpuDevices map[string]*nvml.Device) {
+func (m *MetricServer) updateMetrics() {
 	m.resetMetricsIfNeeded()
-	for container, devices := range containerDevices {
-		AcceleratorRequests.WithLabelValues(container.namespace, container.pod, container.container, gpuResourceName).Set(float64(len(devices)))
-		for _, device := range devices {
-			d, err := gmc.collectGPUDevice(device)
-			if err != nil {
-				glog.Errorf("Failed to get device for %s: %v", device, err)
-				continue
-			}
-			mi, err := gmc.collectGpuMetricsInfo(device, d)
-			if err != nil {
-				glog.Infof("Error calculating duty cycle for device: %s: %v. Skipping this device", device, err)
-				continue
-			}
-			DutyCycle.WithLabelValues(container.namespace, container.pod, container.container, "eicas", mi.uuid, mi.deviceModel).Set(float64(mi.dutyCycle))
-			MemoryTotal.WithLabelValues(container.namespace, container.pod, container.container, "eicas", mi.uuid, mi.deviceModel).Set(float64(mi.totalMemory)) // memory reported in bytes
-			MemoryUsed.WithLabelValues(container.namespace, container.pod, container.container, "eicas", mi.uuid, mi.deviceModel).Set(float64(mi.usedMemory))   // memory reported in bytes
-		}
+	reg := regexp.MustCompile(deviceRE)
+	files, err := ioutil.ReadDir(tpuSysfsPath)
+	if err != nil {
+		glog.Errorf("Failed to get device for %s: %v", tpuSysfsPath, err)
+		return
 	}
-	for device, d := range gpuDevices {
-		mi, err := gmc.collectGpuMetricsInfo(device, d)
-		if err != nil {
-			glog.Infof("Error calculating duty cycle for device: %s: %v. Skipping this device", device, err)
+	for _, f := range files {
+		if f.IsDir() {
+			if reg.MatchString(f.Name()) {
+				glog.V(3).Infof("Found Eicas TPU %q\n", f.Name())
+				usage, err := m.usageAnalysis(path.Join(tpuSysfsPath, f.Name(), "device", "npu_usage"))
+				if err != nil {
+					continue
+				}
+				UsageRateNodeTpu.WithLabelValues("eicas", "mi.uuid", "mi.deviceModel").Set(float64(usage))
+			}
+		} else {
 			continue
 		}
 
-		DutyCycleNodeGpu.WithLabelValues("eicas", mi.uuid, mi.deviceModel).Set(float64(mi.dutyCycle))
-		MemoryTotalNodeGpu.WithLabelValues("eicas", mi.uuid, mi.deviceModel).Set(float64(mi.totalMemory)) // memory reported in bytes
-		MemoryUsedNodeGpu.WithLabelValues("eicas", mi.uuid, mi.deviceModel).Set(float64(mi.usedMemory))   // memory reported in bytes
 	}
+}
+
+func (m *MetricServer) usageAnalysis(fileName string) (usage int, err error) {
+	file, err := os.Open(fileName)
+	if err != nil {
+		glog.Infof("Failed to usageAnalysis: %v", err)
+		return 0, err
+	}
+	defer file.Close()
+
+	// 创建一个 Scanner 用于读取文件内容
+	scanner := bufio.NewScanner(file)
+
+	// 逐行读取文件内容
+	for scanner.Scan() {
+		line := scanner.Text()
+		// 查找包含 "usage" 的行
+		if strings.Contains(line, "usage") {
+			// 解析出数值部分
+			fields := strings.Split(line, " ")
+			if len(fields) >= 2 {
+				valueStr := strings.TrimSpace(fields[0])
+				values := strings.Split(valueStr, ":")
+				value, err := strconv.Atoi(values[1])
+				if err != nil {
+					glog.Infof("Failed to usageAnalysis: %v", err)
+					return 0, err
+				} else {
+					// 输出解析出的数值
+					glog.Infof("Success to usageAnalysis: %v", value)
+					return value, nil
+				}
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		glog.Infof("Failed to usageAnalysis: %v", err)
+		return 0, err
+	}
+	return 0, nil
 }
 
 func (m *MetricServer) resetMetricsIfNeeded() {
 	if time.Now().After(m.lastMetricsResetTime.Add(metricsResetInterval)) {
-		AcceleratorRequests.Reset()
-		DutyCycle.Reset()
-		MemoryTotal.Reset()
-		MemoryUsed.Reset()
-		DutyCycleNodeGpu.Reset()
-		MemoryTotalNodeGpu.Reset()
-		MemoryUsedNodeGpu.Reset()
+		UsageRateNodeTpu.Reset()
 
 		m.lastMetricsResetTime = time.Now()
 	}

@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"regexp"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -32,8 +31,9 @@ import (
 var (
 	socketPath      = "/var/lib/kubelet/pod-resources/kubelet.sock"
 	gpuResourceName = "eicas.com/tpu"
-	gpuPathRegex    = regexp.MustCompile("/dev/(eicas[0-9]+)$")
-
+	tpuSysfsPath    = "/sys/class/bm-sophon"
+	deviceRE        = `^bm-sophon[0-9]*$`
+	//tpuPathRegex    = regexp.MustCompile("/sys/class/bm-sophon/(bm-sophon[0-9]+)$")
 	connectionTimeout = 10 * time.Second
 
 	gpuDevices map[string]*nvml.Device
