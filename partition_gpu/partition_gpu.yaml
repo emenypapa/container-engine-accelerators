@@ -49,30 +49,30 @@ spec:
       - name: dev
         hostPath:
           path: /dev
-      - name: nvidia
+      - name: eicas
         hostPath:
-          path: /home/kubernetes/bin/nvidia
-      - name: nvidia-config
+          path: /home/kubernetes/bin/eicas
+      - name: eicas-config
         hostPath:
-          path: /etc/nvidia
+          path: /etc/eicas
       initContainers:
-      - image: "gcr.io/gke-release/nvidia-partition-gpu@sha256:c54fd003948fac687c2a93a55ea6e4d47ffbd641278a9191e75e822fe72471c2"
+      - image: "gcr.io/gke-release/eicas-partition-tpu@sha256:c54fd003948fac687c2a93a55ea6e4d47ffbd641278a9191e75e822fe72471c2"
         name: partition-gpus
         env:
         - name: LD_LIBRARY_PATH
-          value: /usr/local/nvidia/lib64    
+          value: /usr/local/eicas/lib64
         resources:
           requests:
             cpu: 150m
         securityContext:
           privileged: true
         volumeMounts:
-        - name: nvidia
-          mountPath: /usr/local/nvidia
+        - name: eicas
+          mountPath: /usr/local/eicas
         - name: dev
           mountPath: /dev
-        - name: nvidia-config
-          mountPath: /etc/nvidia
+        - name: eicas-config
+          mountPath: /etc/eicas
       containers:
       - image: "gcr.io/google-containers/pause:2.0"
         name: pause

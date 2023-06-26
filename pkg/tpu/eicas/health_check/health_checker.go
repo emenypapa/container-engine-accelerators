@@ -18,14 +18,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/GoogleCloudPlatform/container-engine-accelerators/pkg/gpu/nvidia/util"
+	"github.com/EicasCloudPlatform/container-engine-accelerators/pkg/tpu/eicas/util"
 	"github.com/NVIDIA/gpu-monitoring-tools/bindings/go/nvml"
 	"github.com/golang/glog"
 
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
-// GPUHealthChecker checks the health of nvidia GPUs. Note that with the current
+// GPUHealthChecker checks the health of eicas GPUs. Note that with the current
 // device naming pattern in device manager, GPUHealthChecker will not work with
 // MIG devices.
 type GPUHealthChecker struct {

@@ -22,9 +22,9 @@ spec:
         - sleep
         command:
         - /drop/sleeper
-        image: gcr.io/vishnuk-cloud/tf-models-gpu:1.0
+        image: gcr.io/vishnuk-cloud/tf-models-tpu:1.0
         imagePullPolicy: Always
-        name: gpu-image
+        name: tpu-image
         resources:
           limits:
             cpu: 1m
@@ -52,7 +52,7 @@ spec:
         - sleep
         command:
         - /drop/sleeper
-        image: gcr.io/vishnuk-cloud/tf-serving:1.9-gpu-minimal
+        image: gcr.io/vishnuk-cloud/tf-serving:1.9-tpu-minimal
         imagePullPolicy: Always
         name: tf-serving-image
         resources:

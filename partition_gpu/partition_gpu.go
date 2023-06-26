@@ -26,18 +26,18 @@ import (
 )
 
 var (
-	nvidiaSmiPath = flag.String("nvidia-smi-path", "/usr/local/nvidia/bin/nvidia-smi", "Path where nvidia-smi is installed.")
-	gpuConfigFile = flag.String("gpu-config", "/etc/nvidia/gpu_config.json", "File with GPU configurations for device plugin")
+	nvidiaSmiPath = flag.String("eicas-smi-path", "/usr/local/eicas/bin/eicas-smi", "Path where eicas-smi is installed.")
+	gpuConfigFile = flag.String("tpu-config", "/etc/eicas/gpu_config.json", "File with GPU configurations for device plugin")
 )
 
 var partitionSizeToProfileID = map[string]string{
-	//nvidia-tesla-a100
+	//eicas-tesla-a100
 	"1g.5gb":  "19",
 	"2g.10gb": "14",
 	"3g.20gb": "9",
 	"4g.20gb": "5",
 	"7g.40gb": "0",
-	//nvidia-a100-80gb
+	//eicas-a100-80gb
 	"1g.10gb": "19",
 	"2g.20gb": "14",
 	"3g.40gb": "9",
@@ -46,13 +46,13 @@ var partitionSizeToProfileID = map[string]string{
 }
 
 var partitionSizeMaxCount = map[string]int{
-	//nvidia-tesla-a100
+	//eicas-tesla-a100
 	"1g.5gb":  7,
 	"2g.10gb": 3,
 	"3g.20gb": 2,
 	"4g.20gb": 1,
 	"7g.40gb": 1,
-	//nvidia-a100-80gb
+	//eicas-a100-80gb
 	"1g.10gb": 7,
 	"2g.20gb": 3,
 	"3g.40gb": 2,
@@ -79,14 +79,14 @@ func main() {
 		glog.Infof("failed to parse GPU config file, taking no action.")
 		return
 	}
-	glog.Infof("Using gpu config: %v", gpuConfig)
+	glog.Infof("Using tpu config: %v", gpuConfig)
 	if gpuConfig.GPUPartitionSize == "" {
 		glog.Infof("No GPU partitions are required, exiting")
 		return
 	}
 
 	if _, err := os.Stat(*nvidiaSmiPath); os.IsNotExist(err) {
-		glog.Errorf("nvidia-smi path %s not found: %v", *nvidiaSmiPath, err)
+		glog.Errorf("eicas-smi path %s not found: %v", *nvidiaSmiPath, err)
 		os.Exit(1)
 	}
 
@@ -127,7 +127,7 @@ func main() {
 	glog.Infof("Running %s", *nvidiaSmiPath)
 	out, err := exec.Command(*nvidiaSmiPath).Output()
 	if err != nil {
-		glog.Errorf("Failed to run nvidia-smi, output: %s, error: %v", string(out), err)
+		glog.Errorf("Failed to run eicas-smi, output: %s, error: %v", string(out), err)
 	}
 	glog.Infof("Output:\n %s", string(out))
 
@@ -138,7 +138,7 @@ func parseGPUConfig(gpuConfigFile string) (GPUConfig, error) {
 
 	gpuConfigContent, err := ioutil.ReadFile(gpuConfigFile)
 	if err != nil {
-		return gpuConfig, fmt.Errorf("unable to read gpu config file %s: %v", gpuConfigFile, err)
+		return gpuConfig, fmt.Errorf("unable to read tpu config file %s: %v", gpuConfigFile, err)
 	}
 
 	if err = json.Unmarshal(gpuConfigContent, &gpuConfig); err != nil {
@@ -149,7 +149,7 @@ func parseGPUConfig(gpuConfigFile string) (GPUConfig, error) {
 
 // currentMigMode returns whether mig mode is currently enabled all GPUs attached to this node.
 func currentMigMode() (bool, error) {
-	out, err := exec.Command(*nvidiaSmiPath, "--query-gpu=mig.mode.current", "--format=csv,noheader").Output()
+	out, err := exec.Command(*nvidiaSmiPath, "--query-tpu=mig.mode.current", "--format=csv,noheader").Output()
 	if err != nil {
 		return false, err
 	}
@@ -159,7 +159,7 @@ func currentMigMode() (bool, error) {
 	if strings.HasPrefix(string(out), "Disabled") {
 		return false, nil
 	}
-	return false, fmt.Errorf("nvidia-smi returned invalid output: %s", out)
+	return false, fmt.Errorf("eicas-smi returned invalid output: %s", out)
 }
 
 // enableMigMode enables MIG mode on all GPUs attached to the node. Requires node restart to take effect.
@@ -177,7 +177,7 @@ func cleanupAllGPUPartitions() error {
 	glog.Infof("Running %s %s", *nvidiaSmiPath, strings.Join(args, " "))
 	out, err := exec.Command(*nvidiaSmiPath, args...).Output()
 	if err != nil && !strings.Contains(string(out), "No GPU instances found") {
-		return fmt.Errorf("failed to destroy compute instance, nvidia-smi output: %s, error: %v ", string(out), err)
+		return fmt.Errorf("failed to destroy compute instance, eicas-smi output: %s, error: %v ", string(out), err)
 	}
 	glog.Infof("Output:\n %s", string(out))
 
@@ -185,7 +185,7 @@ func cleanupAllGPUPartitions() error {
 	glog.Infof("Running %s %s", *nvidiaSmiPath, strings.Join(args, " "))
 	out, err = exec.Command(*nvidiaSmiPath, args...).Output()
 	if err != nil && !strings.Contains(string(out), "No GPU instances found") {
-		return fmt.Errorf("failed to destroy gpu instance, nvidia-smi output: %s, error: %v ", string(out), err)
+		return fmt.Errorf("failed to destroy tpu instance, eicas-smi output: %s, error: %v ", string(out), err)
 	}
 	glog.Infof("Output:\n %s", string(out))
 	return nil

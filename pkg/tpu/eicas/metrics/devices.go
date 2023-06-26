@@ -23,7 +23,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
-	"github.com/GoogleCloudPlatform/container-engine-accelerators/pkg/gpu/nvidia/gpusharing"
+	"github.com/EicasCloudPlatform/container-engine-accelerators/pkg/tpu/eicas/gpusharing"
 	"github.com/golang/glog"
 	"google.golang.org/grpc"
 	podresources "k8s.io/kubernetes/pkg/kubelet/apis/podresources/v1alpha1"
@@ -31,8 +31,8 @@ import (
 
 var (
 	socketPath      = "/var/lib/kubelet/pod-resources/kubelet.sock"
-	gpuResourceName = "nvidia.com/gpu"
-	gpuPathRegex    = regexp.MustCompile("/dev/(nvidia[0-9]+)$")
+	gpuResourceName = "eicas.com/tpu"
+	gpuPathRegex    = regexp.MustCompile("/dev/(eicas[0-9]+)$")
 
 	connectionTimeout = 10 * time.Second
 
@@ -121,7 +121,7 @@ func DiscoverGPUDevices() error {
 		if ret != nvml.SUCCESS {
 			glog.Errorf("Invalid GPU device minor number found. Skipping this device")
 		}
-		deviceName := fmt.Sprintf("nvidia%d", minor)
+		deviceName := fmt.Sprintf("eicas%d", minor)
 		glog.Infof("Found device %s for metrics collection", deviceName)
 		gpuDevices[deviceName] = &device
 	}

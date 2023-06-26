@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package nvidia
+package eicas
 
 import (
 	"fmt"
@@ -81,12 +81,12 @@ func (s *pluginServiceV1Beta1) Allocate(ctx context.Context, requests *pluginapi
 }
 
 func (s *pluginServiceV1Beta1) PreStartContainer(ctx context.Context, r *pluginapi.PreStartContainerRequest) (*pluginapi.PreStartContainerResponse, error) {
-	glog.Errorf("device-plugin: PreStart should NOT be called for GKE nvidia GPU device plugin\n")
+	glog.Errorf("device-plugin: PreStart should NOT be called for GKE eicas GPU device plugin\n")
 	return &pluginapi.PreStartContainerResponse{}, nil
 }
 
 func (s *pluginServiceV1Beta1) GetPreferredAllocation(context.Context, *pluginapi.PreferredAllocationRequest) (*pluginapi.PreferredAllocationResponse, error) {
-	glog.Errorf("device-plugin: GetPreferredAllocation should NOT be called for GKE nvidia GPU device plugin\n")
+	glog.Errorf("device-plugin: GetPreferredAllocation should NOT be called for GKE eicas GPU device plugin\n")
 	return &pluginapi.PreferredAllocationResponse{}, nil
 }
 

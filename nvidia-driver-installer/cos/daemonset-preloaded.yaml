@@ -23,21 +23,21 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: nvidia-driver-installer
+  name: eicas-driver-installer
   namespace: kube-system
   labels:
-    k8s-app: nvidia-driver-installer
+    k8s-app: eicas-driver-installer
 spec:
   selector:
     matchLabels:
-      k8s-app: nvidia-driver-installer
+      k8s-app: eicas-driver-installer
   updateStrategy:
     type: RollingUpdate
   template:
     metadata:
       labels:
-        name: nvidia-driver-installer
-        k8s-app: nvidia-driver-installer
+        name: eicas-driver-installer
+        k8s-app: eicas-driver-installer
     spec:
       priorityClassName: system-node-critical
       affinity:
@@ -47,7 +47,7 @@ spec:
             - matchExpressions:
               - key: cloud.google.com/gke-accelerator
                 operator: Exists
-              - key: cloud.google.com/gke-gpu-driver-version
+              - key: cloud.google.com/gke-tpu-driver-version
                 operator: DoesNotExist
       tolerations:
       - operator: "Exists"
@@ -59,23 +59,23 @@ spec:
           path: /dev
       - name: vulkan-icd-mount
         hostPath:
-          path: /home/kubernetes/bin/nvidia/vulkan/icd.d
-      - name: nvidia-install-dir-host
+          path: /home/kubernetes/bin/eicas/vulkan/icd.d
+      - name: eicas-install-dir-host
         hostPath:
-          path: /home/kubernetes/bin/nvidia
+          path: /home/kubernetes/bin/eicas
       - name: root-mount
         hostPath:
           path: /
       - name: cos-tools
         hostPath:
           path: /var/lib/cos-tools
-      - name: nvidia-config
+      - name: eicas-config
         hostPath:
-          path: /etc/nvidia
+          path: /etc/eicas
       initContainers:
-      - image: "cos-nvidia-installer:fixed"
+      - image: "cos-eicas-installer:fixed"
         imagePullPolicy: Never
-        name: nvidia-driver-installer
+        name: eicas-driver-installer
         resources:
           requests:
             cpu: 150m
@@ -83,11 +83,11 @@ spec:
           privileged: true
         env:
           - name: NVIDIA_INSTALL_DIR_HOST
-            value: /home/kubernetes/bin/nvidia
+            value: /home/kubernetes/bin/eicas
           - name: NVIDIA_INSTALL_DIR_CONTAINER
-            value: /usr/local/nvidia
+            value: /usr/local/eicas
           - name: VULKAN_ICD_DIR_HOST
-            value: /home/kubernetes/bin/nvidia/vulkan/icd.d
+            value: /home/kubernetes/bin/eicas/vulkan/icd.d
           - name: VULKAN_ICD_DIR_CONTAINER
             value: /etc/vulkan/icd.d
           - name: ROOT_MOUNT_DIR
@@ -97,8 +97,8 @@ spec:
           - name: COS_TOOLS_DIR_CONTAINER
             value: /build/cos-tools
         volumeMounts:
-        - name: nvidia-install-dir-host
-          mountPath: /usr/local/nvidia
+        - name: eicas-install-dir-host
+          mountPath: /usr/local/eicas
         - name: vulkan-icd-mount
           mountPath: /etc/vulkan/icd.d
         - name: dev
@@ -107,23 +107,23 @@ spec:
           mountPath: /root
         - name: cos-tools
           mountPath: /build/cos-tools
-      - image: "gcr.io/gke-release/nvidia-partition-gpu@sha256:c54fd003948fac687c2a93a55ea6e4d47ffbd641278a9191e75e822fe72471c2"
+      - image: "gcr.io/gke-release/eicas-partition-tpu@sha256:c54fd003948fac687c2a93a55ea6e4d47ffbd641278a9191e75e822fe72471c2"
         name: partition-gpus
         env:
           - name: LD_LIBRARY_PATH
-            value: /usr/local/nvidia/lib64
+            value: /usr/local/eicas/lib64
         resources:
           requests:
             cpu: 150m
         securityContext:
           privileged: true
         volumeMounts:
-        - name: nvidia-install-dir-host
-          mountPath: /usr/local/nvidia
+        - name: eicas-install-dir-host
+          mountPath: /usr/local/eicas
         - name: dev
           mountPath: /dev
-        - name: nvidia-config
-          mountPath: /etc/nvidia
+        - name: eicas-config
+          mountPath: /etc/eicas
       containers:
       - image: "gcr.io/google-containers/pause:2.0"
         name: pause

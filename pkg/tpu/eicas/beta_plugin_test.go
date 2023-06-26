@@ -11,7 +11,7 @@
 // // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // // See the License for the specific language governing permissions and
 // // limitations under the License.
-package nvidia
+package eicas
 
 //
 //import (
@@ -264,7 +264,7 @@ package nvidia
 //
 //	// Expects a valid GPUManager to be created.
 //	mountPaths := []pluginapi.Mount{
-//		{HostPath: "/home/kubernetes/bin/nvidia", ContainerPath: "/usr/local/nvidia", ReadOnly: true},
+//		{HostPath: "/home/kubernetes/bin/eicas", ContainerPath: "/usr/local/eicas", ReadOnly: true},
 //		{HostPath: "/home/kubernetes/bin/vulkan/icd.d", ContainerPath: "/etc/vulkan/icd.d", ReadOnly: true}}
 //	testGpuManager := NewEicasTPUManager(testDevDir, "", mountPaths, gpuConfig)
 //	if testGpuManager == nil {
@@ -273,7 +273,7 @@ package nvidia
 //
 //	// Start GPU manager.
 //	if err := testGpuManager.Start(); err != nil {
-//		return fmt.Errorf("unable to start gpu manager: %w", err)
+//		return fmt.Errorf("unable to start tpu manager: %w", err)
 //	}
 //
 //	// Tests discoverTPUs()
@@ -386,8 +386,8 @@ package nvidia
 //	defer os.RemoveAll(testProcDir)
 //
 //	paths := []string{
-//		"driver/nvidia/capabilities/gpu0/mig/gi1/ci0",
-//		"driver/nvidia/capabilities/gpu0/mig/gi2/ci0",
+//		"driver/eicas/capabilities/gpu0/mig/gi1/ci0",
+//		"driver/eicas/capabilities/gpu0/mig/gi2/ci0",
 //	}
 //	for _, p := range paths {
 //		if err := os.MkdirAll(path.Join(testProcDir, p), 0755); err != nil {
@@ -400,10 +400,10 @@ package nvidia
 //		}
 //	}()
 //
-//	if err := os.MkdirAll(path.Join(testDevDir, "nvidia-caps"), 0755); err != nil {
+//	if err := os.MkdirAll(path.Join(testDevDir, "eicas-caps"), 0755); err != nil {
 //		return fmt.Errorf("failed to make dir: %w", err)
 //	}
-//	defer os.RemoveAll(path.Join(testDevDir, "nvidia-caps"))
+//	defer os.RemoveAll(path.Join(testDevDir, "eicas-caps"))
 //
 //	// Create device nodes
 //	deviceNodes := []string{
@@ -412,10 +412,10 @@ package nvidia
 //		nvidiaUVMToolsDevice,
 //		nvidiaModesetDevice,
 //		"nvidia0",
-//		"nvidia-caps/nvidia-cap12",
-//		"nvidia-caps/nvidia-cap13",
-//		"nvidia-caps/nvidia-cap21",
-//		"nvidia-caps/nvidia-cap22",
+//		"eicas-caps/eicas-cap12",
+//		"eicas-caps/eicas-cap13",
+//		"eicas-caps/eicas-cap21",
+//		"eicas-caps/eicas-cap22",
 //	}
 //	for _, device := range deviceNodes {
 //		os.Create(path.Join(testDevDir, device))
@@ -427,10 +427,10 @@ package nvidia
 //	}()
 //
 //	capToMinorDevices := map[string]int{
-//		"driver/nvidia/capabilities/gpu0/mig/gi1/access":     12,
-//		"driver/nvidia/capabilities/gpu0/mig/gi1/ci0/access": 13,
-//		"driver/nvidia/capabilities/gpu0/mig/gi2/access":     21,
-//		"driver/nvidia/capabilities/gpu0/mig/gi2/ci0/access": 22,
+//		"driver/eicas/capabilities/gpu0/mig/gi1/access":     12,
+//		"driver/eicas/capabilities/gpu0/mig/gi1/ci0/access": 13,
+//		"driver/eicas/capabilities/gpu0/mig/gi2/access":     21,
+//		"driver/eicas/capabilities/gpu0/mig/gi2/ci0/access": 22,
 //	}
 //	for file, minor := range capToMinorDevices {
 //		if err := ioutil.WriteFile(path.Join(testProcDir, file), []byte(fmt.Sprintf("DeviceFileMinor: %d\nDeviceFileMode: 292", minor)), 0644); err != nil {
@@ -440,7 +440,7 @@ package nvidia
 //
 //	// Expects a valid GPUManager to be created.
 //	mountPaths := []pluginapi.Mount{
-//		{HostPath: "/home/kubernetes/bin/nvidia", ContainerPath: "/usr/local/nvidia", ReadOnly: true},
+//		{HostPath: "/home/kubernetes/bin/eicas", ContainerPath: "/usr/local/eicas", ReadOnly: true},
 //		{HostPath: "/home/kubernetes/bin/vulkan/icd.d", ContainerPath: "/etc/vulkan/icd.d", ReadOnly: true}}
 //	testGpuManager := NewEicasTPUManager(testDevDir, testProcDir, mountPaths, gpuConfig)
 //	if testGpuManager == nil {
@@ -449,7 +449,7 @@ package nvidia
 //
 //	// Start GPU manager.
 //	if err := testGpuManager.Start(); err != nil {
-//		return fmt.Errorf("unable to start gpu manager: %w", err)
+//		return fmt.Errorf("unable to start tpu manager: %w", err)
 //	}
 //
 //	// Tests discoverTPUs()
@@ -542,8 +542,8 @@ package nvidia
 //
 //	// Tests detecting new GPU
 //	newPaths := []string{
-//		"driver/nvidia/capabilities/gpu1/mig/gi1/ci0",
-//		"driver/nvidia/capabilities/gpu1/mig/gi2/ci0",
+//		"driver/eicas/capabilities/gpu1/mig/gi1/ci0",
+//		"driver/eicas/capabilities/gpu1/mig/gi2/ci0",
 //	}
 //	for _, p := range newPaths {
 //		if err := os.MkdirAll(path.Join(testProcDir, p), 0755); err != nil {
@@ -558,10 +558,10 @@ package nvidia
 //
 //	newDeviceNodes := []string{
 //		"nvidia1",
-//		"nvidia-caps/nvidia-cap11",
-//		"nvidia-caps/nvidia-cap10",
-//		"nvidia-caps/nvidia-cap23",
-//		"nvidia-caps/nvidia-cap14",
+//		"eicas-caps/eicas-cap11",
+//		"eicas-caps/eicas-cap10",
+//		"eicas-caps/eicas-cap23",
+//		"eicas-caps/eicas-cap14",
 //	}
 //	for _, device := range newDeviceNodes {
 //		os.Create(path.Join(testDevDir, device))
@@ -573,10 +573,10 @@ package nvidia
 //	}()
 //
 //	newCapToMinorDevices := map[string]int{
-//		"driver/nvidia/capabilities/gpu1/mig/gi1/access":     11,
-//		"driver/nvidia/capabilities/gpu1/mig/gi1/ci0/access": 10,
-//		"driver/nvidia/capabilities/gpu1/mig/gi2/access":     23,
-//		"driver/nvidia/capabilities/gpu1/mig/gi2/ci0/access": 14,
+//		"driver/eicas/capabilities/gpu1/mig/gi1/access":     11,
+//		"driver/eicas/capabilities/gpu1/mig/gi1/ci0/access": 10,
+//		"driver/eicas/capabilities/gpu1/mig/gi2/access":     23,
+//		"driver/eicas/capabilities/gpu1/mig/gi2/ci0/access": 14,
 //	}
 //	for file, minor := range newCapToMinorDevices {
 //		if err := ioutil.WriteFile(path.Join(testProcDir, file), []byte(fmt.Sprintf("DeviceFileMinor: %d\nDeviceFileMode: 292", minor)), 0644); err != nil {

@@ -15,7 +15,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: resnet-gpu
+  name: resnet-tpu
 spec:
   template:
     spec:
@@ -25,7 +25,7 @@ spec:
         persistentVolumeClaim:
           claimName: nfs
       containers:
-      - name: resnet-gpu
+      - name: resnet-tpu
         image: gcr.io/vishnuk-cloud/tensorflow@sha256:c5655a73205a447e1552fc833d14ab66eee2304dbf64846edd88c41434c6f5f2
         command:
           - python

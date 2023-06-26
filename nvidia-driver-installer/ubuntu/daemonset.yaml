@@ -15,21 +15,21 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: nvidia-driver-installer
+  name: eicas-driver-installer
   namespace: kube-system
   labels:
-    k8s-app: nvidia-driver-installer
+    k8s-app: eicas-driver-installer
 spec:
   selector:
     matchLabels:
-      k8s-app: nvidia-driver-installer
+      k8s-app: eicas-driver-installer
   updateStrategy:
     type: RollingUpdate
   template:
     metadata:
       labels:
-        name: nvidia-driver-installer
-        k8s-app: nvidia-driver-installer
+        name: eicas-driver-installer
+        k8s-app: eicas-driver-installer
     spec:
       priorityClassName: system-node-critical
       affinity:
@@ -45,15 +45,15 @@ spec:
       - name: dev
         hostPath:
           path: /dev
-      - name: nvidia-install-dir-host
+      - name: eicas-install-dir-host
         hostPath:
-          path: /home/kubernetes/bin/nvidia
+          path: /home/kubernetes/bin/eicas
       - name: root-mount
         hostPath:
           path: /
       initContainers:
-      - image: gcr.io/google-containers/ubuntu-nvidia-driver-installer@sha256:70a572cf27316a7eac168107f5da823effe49a8d69e38d3292cf1a9d52c4c1d7
-        name: nvidia-driver-installer
+      - image: gcr.io/google-containers/ubuntu-eicas-driver-installer@sha256:70a572cf27316a7eac168107f5da823effe49a8d69e38d3292cf1a9d52c4c1d7
+        name: eicas-driver-installer
         resources:
           requests:
             cpu: 150m
@@ -61,14 +61,14 @@ spec:
           privileged: true
         env:
           - name: NVIDIA_INSTALL_DIR_HOST
-            value: /home/kubernetes/bin/nvidia
+            value: /home/kubernetes/bin/eicas
           - name: NVIDIA_INSTALL_DIR_CONTAINER
-            value: /usr/local/nvidia
+            value: /usr/local/eicas
           - name: ROOT_MOUNT_DIR
             value: /root
         volumeMounts:
-        - name: nvidia-install-dir-host
-          mountPath: /usr/local/nvidia
+        - name: eicas-install-dir-host
+          mountPath: /usr/local/eicas
         - name: dev
           mountPath: /dev
         - name: root-mount

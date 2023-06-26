@@ -20,7 +20,7 @@ import (
 )
 
 func DeviceNameFromPath(path string) (string, error) {
-	gpuPathRegex := regexp.MustCompile("/dev/(nvidia[0-9]+)$")
+	gpuPathRegex := regexp.MustCompile("/dev/(eicas[0-9]+)$")
 	m := gpuPathRegex.FindStringSubmatch(path)
 	if len(m) != 2 {
 		return "", fmt.Errorf("path (%s) is not a valid GPU device path", path)

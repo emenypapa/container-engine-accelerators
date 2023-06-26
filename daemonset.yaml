@@ -22,21 +22,21 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: nvidia-driver-installer
+  name: eicas-driver-installer
   namespace: kube-system
   labels:
-    k8s-app: nvidia-driver-installer
+    k8s-app: eicas-driver-installer
 spec:
   selector:
     matchLabels:
-      k8s-app: nvidia-driver-installer
+      k8s-app: eicas-driver-installer
   updateStrategy:
     type: RollingUpdate
   template:
     metadata:
       labels:
-        name: nvidia-driver-installer
-        k8s-app: nvidia-driver-installer
+        name: eicas-driver-installer
+        k8s-app: eicas-driver-installer
     spec:
       affinity:
         nodeAffinity:
@@ -55,16 +55,16 @@ spec:
           path: /dev
       - name: vulkan-icd-mount
         hostPath:
-          path: /home/kubernetes/bin/nvidia/vulkan/icd.d
-      - name: nvidia-install-dir-host
+          path: /home/kubernetes/bin/eicas/vulkan/icd.d
+      - name: eicas-install-dir-host
         hostPath:
-          path: /home/kubernetes/bin/nvidia
+          path: /home/kubernetes/bin/eicas
       - name: root-mount
         hostPath:
           path: /
       initContainers:
-      - image: gcr.io/cos-cloud/cos-gpu-installer@sha256:8d86a652759f80595cafed7d3dcde3dc53f57f9bc1e33b27bc3cfa7afea8d483  # 'v20200701'
-        name: nvidia-driver-installer
+      - image: gcr.io/cos-cloud/cos-tpu-installer@sha256:8d86a652759f80595cafed7d3dcde3dc53f57f9bc1e33b27bc3cfa7afea8d483  # 'v20200701'
+        name: eicas-driver-installer
         resources:
           requests:
             cpu: 150m
@@ -72,18 +72,18 @@ spec:
           privileged: true
         env:
           - name: NVIDIA_INSTALL_DIR_HOST
-            value: /home/kubernetes/bin/nvidia
+            value: /home/kubernetes/bin/eicas
           - name: NVIDIA_INSTALL_DIR_CONTAINER
-            value: /usr/local/nvidia
+            value: /usr/local/eicas
           - name: VULKAN_ICD_DIR_HOST
-            value: /home/kubernetes/bin/nvidia/vulkan/icd.d
+            value: /home/kubernetes/bin/eicas/vulkan/icd.d
           - name: VULKAN_ICD_DIR_CONTAINER
             value: /etc/vulkan/icd.d
           - name: ROOT_MOUNT_DIR
             value: /root
         volumeMounts:
-        - name: nvidia-install-dir-host
-          mountPath: /usr/local/nvidia
+        - name: eicas-install-dir-host
+          mountPath: /usr/local/eicas
         - name: vulkan-icd-mount
           mountPath: /etc/vulkan/icd.d
         - name: dev

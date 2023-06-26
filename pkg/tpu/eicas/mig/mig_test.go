@@ -38,24 +38,24 @@ func TestDiscoverGPUPartitions(t *testing.T) {
 		t.Fatalf("failed to create temp proc dir: %v", err)
 	}
 
-	if err := os.MkdirAll(path.Join(testProcDir, "driver/nvidia/capabilities/gpu0/mig/gi1/ci0"), 0755); err != nil {
+	if err := os.MkdirAll(path.Join(testProcDir, "driver/eicas/capabilities/gpu0/mig/gi1/ci0"), 0755); err != nil {
 		t.Fatalf("failed to create capabilities dir: %v", err)
 	}
-	if err := os.MkdirAll(path.Join(testProcDir, "driver/nvidia/capabilities/gpu0/mig/gi2/ci0"), 0755); err != nil {
+	if err := os.MkdirAll(path.Join(testProcDir, "driver/eicas/capabilities/gpu0/mig/gi2/ci0"), 0755); err != nil {
 		t.Fatalf("failed to create capabilities dir: %v", err)
 	}
 
-	err = os.MkdirAll(path.Join(testDevDir, "nvidia-caps"), 0755)
+	err = os.MkdirAll(path.Join(testDevDir, "eicas-caps"), 0755)
 	if err != nil {
 		t.Fatalf("failed to create capabilities device dir: %v", err)
 	}
 
 	// Create GI and CI acceess files
 	capToMinorDevices := map[string]int{
-		"driver/nvidia/capabilities/gpu0/mig/gi1/access":     12,
-		"driver/nvidia/capabilities/gpu0/mig/gi1/ci0/access": 13,
-		"driver/nvidia/capabilities/gpu0/mig/gi2/access":     21,
-		"driver/nvidia/capabilities/gpu0/mig/gi2/ci0/access": 22,
+		"driver/eicas/capabilities/gpu0/mig/gi1/access":     12,
+		"driver/eicas/capabilities/gpu0/mig/gi1/ci0/access": 13,
+		"driver/eicas/capabilities/gpu0/mig/gi2/access":     21,
+		"driver/eicas/capabilities/gpu0/mig/gi2/ci0/access": 22,
 	}
 	for file, minor := range capToMinorDevices {
 		if err := ioutil.WriteFile(path.Join(testProcDir, file), []byte(fmt.Sprintf("DeviceFileMinor: %d\nDeviceFileMode: 292", minor)), 0644); err != nil {
@@ -65,14 +65,14 @@ func TestDiscoverGPUPartitions(t *testing.T) {
 
 	// Create device nodes
 	deviceNodes := []string{
-		"nvidia-uvm",
-		"nvidia-uvm-tools",
+		"eicas-uvm",
+		"eicas-uvm-tools",
 		"nvidiactl",
 		"nvidia0",
-		"nvidia-caps/nvidia-cap12",
-		"nvidia-caps/nvidia-cap13",
-		"nvidia-caps/nvidia-cap21",
-		"nvidia-caps/nvidia-cap22",
+		"eicas-caps/eicas-cap12",
+		"eicas-caps/eicas-cap13",
+		"eicas-caps/eicas-cap21",
+		"eicas-caps/eicas-cap22",
 	}
 	for _, device := range deviceNodes {
 		if _, err := os.Create(path.Join(testDevDir, device)); err != nil {
@@ -98,13 +98,13 @@ func TestDiscoverGPUPartitions(t *testing.T) {
 				Permissions:   "mrw",
 			},
 			{
-				ContainerPath: path.Join(testDevDir, "nvidia-caps/nvidia-cap12"),
-				HostPath:      path.Join(testDevDir, "nvidia-caps/nvidia-cap12"),
+				ContainerPath: path.Join(testDevDir, "eicas-caps/eicas-cap12"),
+				HostPath:      path.Join(testDevDir, "eicas-caps/eicas-cap12"),
 				Permissions:   "mrw",
 			},
 			{
-				ContainerPath: path.Join(testDevDir, "nvidia-caps/nvidia-cap13"),
-				HostPath:      path.Join(testDevDir, "nvidia-caps/nvidia-cap13"),
+				ContainerPath: path.Join(testDevDir, "eicas-caps/eicas-cap13"),
+				HostPath:      path.Join(testDevDir, "eicas-caps/eicas-cap13"),
 				Permissions:   "mrw",
 			},
 		},
@@ -115,13 +115,13 @@ func TestDiscoverGPUPartitions(t *testing.T) {
 				Permissions:   "mrw",
 			},
 			{
-				ContainerPath: path.Join(testDevDir, "nvidia-caps/nvidia-cap21"),
-				HostPath:      path.Join(testDevDir, "nvidia-caps/nvidia-cap21"),
+				ContainerPath: path.Join(testDevDir, "eicas-caps/eicas-cap21"),
+				HostPath:      path.Join(testDevDir, "eicas-caps/eicas-cap21"),
 				Permissions:   "mrw",
 			},
 			{
-				ContainerPath: path.Join(testDevDir, "nvidia-caps/nvidia-cap22"),
-				HostPath:      path.Join(testDevDir, "nvidia-caps/nvidia-cap22"),
+				ContainerPath: path.Join(testDevDir, "eicas-caps/eicas-cap22"),
+				HostPath:      path.Join(testDevDir, "eicas-caps/eicas-cap22"),
 				Permissions:   "mrw",
 			},
 		},

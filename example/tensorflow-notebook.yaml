@@ -41,7 +41,7 @@ spec:
         app: tf-notebook
     spec:
       tolerations:
-      - key: nvidia.com/gpu
+      - key: eicas.com/tpu
         effect: NoSchedule
       securityContext:
         fsGroup: 0
@@ -50,7 +50,7 @@ spec:
         image: gcr.io/kubeflow/tensorflow-notebook-cpu:v1
         resources:
 #          limits:
- #           nvidia.com/gpu: 1 # Number of GPUs
+ #           eicas.com/tpu: 1 # Number of GPUs
           requests:
             cpu: 1
             memory: 1Gi

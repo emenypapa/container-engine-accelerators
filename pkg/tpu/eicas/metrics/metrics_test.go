@@ -128,82 +128,82 @@ package metrics
 //
 //	if testutil.ToFloat64(
 //		DutyCycle.WithLabelValues(
-//			"default", "pod1", "container1", "nvidia", "656547758", "model1")) != 78 ||
+//			"default", "pod1", "container1", "eicas", "656547758", "model1")) != 78 ||
 //		testutil.ToFloat64(
 //			DutyCycle.WithLabelValues(
-//				"non-default", "pod2", "container2", "nvidia", "850729563", "model2")) != 32 ||
+//				"non-default", "pod2", "container2", "eicas", "850729563", "model2")) != 32 ||
 //		testutil.ToFloat64(
 //			DutyCycle.WithLabelValues(
-//				"non-default", "pod2", "container2", "nvidia", "3572375710", "model1")) != 13 {
+//				"non-default", "pod2", "container2", "eicas", "3572375710", "model1")) != 13 {
 //		t.Fatalf("Wrong Result in DutyCycle")
 //	}
 //
 //	if testutil.ToFloat64(
 //		MemoryTotal.WithLabelValues(
-//			"default", "pod1", "container1", "nvidia", "656547758", "model1")) != 200 ||
+//			"default", "pod1", "container1", "eicas", "656547758", "model1")) != 200 ||
 //		testutil.ToFloat64(
 //			MemoryTotal.WithLabelValues(
-//				"non-default", "pod2", "container2", "nvidia", "850729563", "model2")) != 200 ||
+//				"non-default", "pod2", "container2", "eicas", "850729563", "model2")) != 200 ||
 //		testutil.ToFloat64(
 //			MemoryTotal.WithLabelValues(
-//				"non-default", "pod2", "container2", "nvidia", "3572375710", "model1")) != 350 {
+//				"non-default", "pod2", "container2", "eicas", "3572375710", "model1")) != 350 {
 //		t.Fatalf("Wrong Result in MemoryTotal")
 //	}
 //
 //	if testutil.ToFloat64(
 //		MemoryUsed.WithLabelValues(
-//			"default", "pod1", "container1", "nvidia", "656547758", "model1")) != 50 ||
+//			"default", "pod1", "container1", "eicas", "656547758", "model1")) != 50 ||
 //		testutil.ToFloat64(
 //			MemoryUsed.WithLabelValues(
-//				"non-default", "pod2", "container2", "nvidia", "850729563", "model2")) != 150 ||
+//				"non-default", "pod2", "container2", "eicas", "850729563", "model2")) != 150 ||
 //		testutil.ToFloat64(
 //			MemoryUsed.WithLabelValues(
-//				"non-default", "pod2", "container2", "nvidia", "3572375710", "model1")) != 100 {
+//				"non-default", "pod2", "container2", "eicas", "3572375710", "model1")) != 100 {
 //		t.Fatalf("Wrong Result in MemoryTotal")
 //	}
 //
 //	if testutil.ToFloat64(
 //		DutyCycleNodeGpu.WithLabelValues(
-//			"nvidia", "656547758", "model1")) != 78 ||
+//			"eicas", "656547758", "model1")) != 78 ||
 //		testutil.ToFloat64(
 //			DutyCycleNodeGpu.WithLabelValues(
-//				"nvidia", "850729563", "model2")) != 32 ||
+//				"eicas", "850729563", "model2")) != 32 ||
 //		testutil.ToFloat64(
 //			DutyCycleNodeGpu.WithLabelValues(
-//				"nvidia", "3572375710", "model1")) != 13 ||
+//				"eicas", "3572375710", "model1")) != 13 ||
 //		testutil.ToFloat64(
 //			DutyCycleNodeGpu.WithLabelValues(
-//				"nvidia", "8732906554", "model1")) != 1 {
+//				"eicas", "8732906554", "model1")) != 1 {
 //		t.Fatalf("Wrong Result in DutyCycleNodeGpu")
 //	}
 //
 //	if testutil.ToFloat64(
 //		MemoryTotalNodeGpu.WithLabelValues(
-//			"nvidia", "656547758", "model1")) != 200 ||
+//			"eicas", "656547758", "model1")) != 200 ||
 //		testutil.ToFloat64(
 //			MemoryTotalNodeGpu.WithLabelValues(
-//				"nvidia", "850729563", "model2")) != 200 ||
+//				"eicas", "850729563", "model2")) != 200 ||
 //		testutil.ToFloat64(
 //			MemoryTotalNodeGpu.WithLabelValues(
-//				"nvidia", "3572375710", "model1")) != 350 ||
+//				"eicas", "3572375710", "model1")) != 350 ||
 //		testutil.ToFloat64(
 //			MemoryTotalNodeGpu.WithLabelValues(
-//				"nvidia", "8732906554", "model1")) != 700 {
+//				"eicas", "8732906554", "model1")) != 700 {
 //		t.Fatalf("Wrong Result in MemoryTotalNodeGpu")
 //	}
 //
 //	if testutil.ToFloat64(
 //		MemoryUsedNodeGpu.WithLabelValues(
-//			"nvidia", "656547758", "model1")) != 50 ||
+//			"eicas", "656547758", "model1")) != 50 ||
 //		testutil.ToFloat64(
 //			MemoryUsedNodeGpu.WithLabelValues(
-//				"nvidia", "850729563", "model2")) != 150 ||
+//				"eicas", "850729563", "model2")) != 150 ||
 //		testutil.ToFloat64(
 //			MemoryUsedNodeGpu.WithLabelValues(
-//				"nvidia", "3572375710", "model1")) != 100 ||
+//				"eicas", "3572375710", "model1")) != 100 ||
 //		testutil.ToFloat64(
 //			MemoryUsedNodeGpu.WithLabelValues(
-//				"nvidia", "8732906554", "model1")) != 375 {
+//				"eicas", "8732906554", "model1")) != 375 {
 //		t.Fatalf("Wrong Result in MemoryUsedNodeGpu")
 //	}
 //}

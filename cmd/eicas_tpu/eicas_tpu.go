@@ -16,10 +16,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/GoogleCloudPlatform/container-engine-accelerators/pkg/gpu/nvidia/metrics"
+	"github.com/EicasCloudPlatform/container-engine-accelerators/pkg/tpu/eicas/metrics"
 	"time"
 
-	gpumanager "github.com/GoogleCloudPlatform/container-engine-accelerators/pkg/gpu/nvidia"
+	gpumanager "github.com/EicasCloudPlatform/container-engine-accelerators/pkg/tpu/eicas"
 	"github.com/golang/glog"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )

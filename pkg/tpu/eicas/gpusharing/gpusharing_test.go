@@ -48,13 +48,13 @@ func TestValidateRequest(t *testing.T) {
 		name:              "request multiple virtual devices and have one physical devices - timesharing",
 		requestDevicesIDs: []string{"nvidia0/vgpu0", "nvidia1/vgpu1"},
 		deviceCount:       1,
-		wantError:         errors.New("invalid request for sharing GPU (time-sharing), at most 1 nvidia.com/gpu can be requested on GPU nodes"),
+		wantError:         errors.New("invalid request for sharing GPU (time-sharing), at most 1 eicas.com/tpu can be requested on GPU nodes"),
 	}, {
 		name:              "request multiple virtual devices and have multiple physical devices - mps",
 		requestDevicesIDs: []string{"nvidia0/vgpu0", "nvidia1/vgpu1"},
 		sharingStrategy:   MPS,
 		deviceCount:       2,
-		wantError:         errors.New("invalid request for sharing GPU (MPS), at most 1 nvidia.com/gpu can be requested on multi-GPU nodes"),
+		wantError:         errors.New("invalid request for sharing GPU (MPS), at most 1 eicas.com/tpu can be requested on multi-GPU nodes"),
 	}}
 
 	for _, tc := range cases {

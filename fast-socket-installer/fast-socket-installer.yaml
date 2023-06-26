@@ -31,9 +31,9 @@ spec:
       hostNetwork: true
       hostPID: true
       volumes:
-      - name: nvidia-install-dir-host
+      - name: eicas-install-dir-host
         hostPath:
-          path: /home/kubernetes/bin/nvidia
+          path: /home/kubernetes/bin/eicas
           type: Directory
       initContainers:
       - image: gcr.io/gke-release/fastsocket-installer@sha256:cb8dca70b5611769fd2e0e8eb9aebf81a89d4378537cff104775c873abf2d9c5
@@ -50,10 +50,10 @@ spec:
             memory: 100Mi
         env:
         - name: NCCL_INSTALL_DIR
-          value: /usr/local/nvidia/lib64
+          value: /usr/local/eicas/lib64
         volumeMounts:
-        - name: nvidia-install-dir-host
-          mountPath: /usr/local/nvidia
+        - name: eicas-install-dir-host
+          mountPath: /usr/local/eicas
       containers:
       - image: "gcr.io/google-containers/pause:2.0"
         name: pause

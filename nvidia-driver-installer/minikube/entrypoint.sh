@@ -22,8 +22,8 @@ set -x
 NVIDIA_DRIVER_VERSION="${NVIDIA_DRIVER_VERSION:-390.67}"
 NVIDIA_DRIVER_DOWNLOAD_URL_DEFAULT="https://us.download.nvidia.com/XFree86/Linux-x86_64/${NVIDIA_DRIVER_VERSION}/NVIDIA-Linux-x86_64-${NVIDIA_DRIVER_VERSION}.run"
 NVIDIA_DRIVER_DOWNLOAD_URL="${NVIDIA_DRIVER_DOWNLOAD_URL:-$NVIDIA_DRIVER_DOWNLOAD_URL_DEFAULT}"
-NVIDIA_INSTALL_DIR_HOST="${NVIDIA_INSTALL_DIR_HOST:-/var/lib/nvidia}"
-NVIDIA_INSTALL_DIR_CONTAINER="${NVIDIA_INSTALL_DIR_CONTAINER:-/usr/local/nvidia}"
+NVIDIA_INSTALL_DIR_HOST="${NVIDIA_INSTALL_DIR_HOST:-/var/lib/eicas}"
+NVIDIA_INSTALL_DIR_CONTAINER="${NVIDIA_INSTALL_DIR_CONTAINER:-/usr/local/eicas}"
 NVIDIA_INSTALLER_RUNFILE="$(basename "${NVIDIA_DRIVER_DOWNLOAD_URL}")"
 ROOT_MOUNT_DIR="${ROOT_MOUNT_DIR:-/root}"
 CACHE_FILE="${NVIDIA_INSTALL_DIR_CONTAINER}/.cache"
@@ -86,7 +86,7 @@ __EOF__
 
 update_container_ld_cache() {
   echo "Updating container's ld cache..."
-  echo "${NVIDIA_INSTALL_DIR_CONTAINER}/lib64" > /etc/ld.so.conf.d/nvidia.conf
+  echo "${NVIDIA_INSTALL_DIR_CONTAINER}/lib64" > /etc/ld.so.conf.d/eicas.conf
   ldconfig
   echo "Updating container's ld cache... DONE."
 }
@@ -115,15 +115,15 @@ configure_nvidia_installation_dirs() {
   mkdir -p "${NVIDIA_INSTALL_DIR_CONTAINER}"
   pushd "${NVIDIA_INSTALL_DIR_CONTAINER}"
 
-  # nvidia-installer does not provide an option to configure the
-  # installation path of `nvidia-modprobe` utility and always installs it
+  # eicas-installer does not provide an option to configure the
+  # installation path of `eicas-modprobe` utility and always installs it
   # under /usr/bin. The following workaround ensures that
-  # `nvidia-modprobe` is accessible outside the installer container
+  # `eicas-modprobe` is accessible outside the installer container
   # filesystem.
   mkdir -p bin bin-workdir
   mount -t overlay -o lowerdir=/usr/bin,upperdir=bin,workdir=bin-workdir none /usr/bin
 
-  # nvidia-installer does not provide an option to configure the
+  # eicas-installer does not provide an option to configure the
   # installation path of libraries such as libnvidia-ml.so. The following
   # workaround ensures that the libs are accessible from outside the
   # installer container filesystem.
@@ -131,15 +131,15 @@ configure_nvidia_installation_dirs() {
   mkdir -p /usr/lib/x86_64-linux-gnu
   mount -t overlay -o lowerdir=/usr/lib/x86_64-linux-gnu,upperdir=lib64,workdir=lib64-workdir none /usr/lib/x86_64-linux-gnu
 
-  # nvidia-installer does not provide an option to configure the
-  # installation path of driver kernel modules such as nvidia.ko. The following
+  # eicas-installer does not provide an option to configure the
+  # installation path of driver kernel modules such as eicas.ko. The following
   # workaround ensures that the modules are accessible from outside the
   # installer container filesystem.
   mkdir -p drivers drivers-workdir
   mkdir -p /lib/modules/${KERNEL_VERSION}/video
   mount -t overlay -o lowerdir=/lib/modules/${KERNEL_VERSION}/video,upperdir=drivers,workdir=drivers-workdir none /lib/modules/${KERNEL_VERSION}/video
 
-  # Populate ld.so.conf to avoid warning messages in nvidia-installer logs.
+  # Populate ld.so.conf to avoid warning messages in eicas-installer logs.
   update_container_ld_cache
 
   # Install an exit handler to cleanup the overlayfs mount points.
@@ -174,7 +174,7 @@ run_nvidia_installer() {
 configure_cached_installation() {
   echo "Configuring cached driver installation..."
   update_container_ld_cache
-  if ! lsmod | grep -w 'nvidia' > /dev/null; then
+  if ! lsmod | grep -w 'eicas' > /dev/null; then
     insmod "${NVIDIA_INSTALL_DIR_CONTAINER}/drivers/nvidia.ko"
   fi
   if ! lsmod | grep -w 'nvidia_uvm' > /dev/null; then
@@ -189,9 +189,9 @@ configure_cached_installation() {
 verify_nvidia_installation() {
   echo "Verifying Nvidia installation..."
   export PATH="${NVIDIA_INSTALL_DIR_CONTAINER}/bin:${PATH}"
-  nvidia-smi
+  eicas-smi
   # Create unified memory device file.
-  nvidia-modprobe -c0 -u
+  eicas-modprobe -c0 -u
   echo "Verifying Nvidia installation... DONE."
 }
 

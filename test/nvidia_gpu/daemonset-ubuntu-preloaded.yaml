@@ -15,21 +15,21 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: nvidia-driver-installer
+  name: eicas-driver-installer
   namespace: kube-system
   labels:
-    k8s-app: nvidia-driver-installer
+    k8s-app: eicas-driver-installer
 spec:
   selector:
     matchLabels:
-      k8s-app: nvidia-driver-installer
+      k8s-app: eicas-driver-installer
   updateStrategy:
     type: RollingUpdate
   template:
     metadata:
       labels:
-        name: nvidia-driver-installer
-        k8s-app: nvidia-driver-installer
+        name: eicas-driver-installer
+        k8s-app: eicas-driver-installer
     spec:
       affinity:
         nodeAffinity:
@@ -51,8 +51,8 @@ spec:
           hostPath:
             path: /
       initContainers:
-        - image: gke-nvidia-installer:fixed
-          name: nvidia-driver-installer
+        - image: gke-eicas-installer:fixed
+          name: eicas-driver-installer
           resources:
             requests:
               cpu: 150m

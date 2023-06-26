@@ -3,17 +3,17 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   labels:
-    k8s-app: nvidia-gpu-device-plugin
-  name: nvidia-gpu-device-plugin
+    k8s-app: eicas-tpu-device-plugin
+  name: eicas-tpu-device-plugin
   namespace: kube-system
 spec:
   selector:
     matchLabels:
-      k8s-app: nvidia-gpu-device-plugin
+      k8s-app: eicas-tpu-device-plugin
   template:
     metadata:
       labels:
-        k8s-app: nvidia-gpu-device-plugin
+        k8s-app: eicas-tpu-device-plugin
     spec:
       affinity:
         nodeAffinity:
@@ -24,9 +24,9 @@ spec:
                     operator: Exists
       containers:
         - command:
-            - /usr/bin/nvidia-gpu-device-plugin
+            - /usr/bin/eicas-tpu-device-plugin
             - -logtostderr
-            - --enable-container-gpu-metrics
+            - --enable-container-tpu-metrics
             - --enable-health-monitoring
           env:
             - name: XID_CONFIG
@@ -36,11 +36,11 @@ spec:
                   name: xid-config
                   optional: true
             - name: LD_LIBRARY_PATH
-              value: /usr/local/nvidia/lib64
+              value: /usr/local/eicas/lib64
             - name: GOMAXPROCS
               value: "1"
-          image: gcr.io/gke-release/nvidia-gpu-device-plugin@sha256:6b25281cd0fa3ca55f3e837a18be4a14b44952105568f466530dd85bcebde62f
-          name: nvidia-gpu-device-plugin
+          image: gcr.io/gke-release/eicas-tpu-device-plugin@sha256:6b25281cd0fa3ca55f3e837a18be4a14b44952105568f466530dd85bcebde62f
+          name: eicas-tpu-device-plugin
           ports:
             - containerPort: 2112
               name: metrics
@@ -57,14 +57,14 @@ spec:
               name: device-plugin
             - mountPath: /dev
               name: dev
-            - mountPath: /usr/local/nvidia
-              name: nvidia
+            - mountPath: /usr/local/eicas
+              name: eicas
             - mountPath: /var/lib/kubelet/pod-resources
               name: pod-resources
             - mountPath: /proc
               name: proc
-            - mountPath: /etc/nvidia
-              name: nvidia-config
+            - mountPath: /etc/eicas
+              name: eicas-config
       priorityClassName: system-node-critical
       restartPolicy: Always
       securityContext:
@@ -93,12 +93,12 @@ spec:
             type: Directory
           name: proc
         - hostPath:
-            path: /etc/nvidia
+            path: /etc/eicas
             type: DirectoryOrCreate
-          name: nvidia-config
+          name: eicas-config
         - hostPath:
-            path: /home/kubernetes/bin/nvidia
+            path: /home/kubernetes/bin/eicas
             type: Directory
-          name: nvidia
+          name: eicas
   updateStrategy:
     type: RollingUpdate

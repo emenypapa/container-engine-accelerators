@@ -40,9 +40,9 @@ var SharingStrategy GPUSharingStrategy
 func ValidateRequest(requestDevicesIDs []string, deviceCount int) error {
 	if len(requestDevicesIDs) > 1 && IsVirtualDeviceID(requestDevicesIDs[0]) {
 		if SharingStrategy == TimeSharing {
-			return errors.New("invalid request for sharing GPU (time-sharing), at most 1 nvidia.com/gpu can be requested on GPU nodes")
+			return errors.New("invalid request for sharing GPU (time-sharing), at most 1 eicas.com/tpu can be requested on GPU nodes")
 		} else if SharingStrategy == MPS && deviceCount > 1 {
-			return errors.New("invalid request for sharing GPU (MPS), at most 1 nvidia.com/gpu can be requested on multi-GPU nodes")
+			return errors.New("invalid request for sharing GPU (MPS), at most 1 eicas.com/tpu can be requested on multi-GPU nodes")
 		}
 	}
 
@@ -66,12 +66,12 @@ func IsVirtualDeviceID(virtualDeviceID string) bool {
 
 func isVirtualDeviceIDForDefaultMode(virtualDeviceID string) bool {
 	// Generally, the virtualDeviceID will form as 'nvidia0/vgpu0', with the underlying physicalDeviceID as 'nvidia0'.
-	validRegex := regexp.MustCompile("nvidia([0-9]+)\\/vgpu([0-9]+)$")
+	validRegex := regexp.MustCompile("eicas([0-9]+)\\/vgpu([0-9]+)$")
 	return validRegex.MatchString(virtualDeviceID)
 }
 
 func isVirtualDeviceIDForMIGMode(virtualDeviceID string) bool {
 	// In MIG case, the virtualDeviceID will form as `nvidia0/gi0/vgpu0`, with the underlying physicalDeviceID as 'nvidia0/gi0'.
-	validMigRegex := regexp.MustCompile("nvidia([0-9]+)\\/gi([0-9]+)\\/vgpu([0-9]+)$")
+	validMigRegex := regexp.MustCompile("eicas([0-9]+)\\/gi([0-9]+)\\/vgpu([0-9]+)$")
 	return validMigRegex.MatchString(virtualDeviceID)
 }

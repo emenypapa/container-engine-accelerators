@@ -26,17 +26,17 @@ import (
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
-const nvidiaDeviceRE = `^nvidia[0-9]*$`
+const nvidiaDeviceRE = `^eicas[0-9]*$`
 
 // Max number of GPU partitions that can be created for each partition size.
 // Source: https://docs.nvidia.com/datacenter/tesla/mig-user-guide/#partitioning
 var gpuPartitionSizeMaxCount = map[string]int{
-	//nvidia-tesla-a100
+	//eicas-tesla-a100
 	"1g.5gb":  7,
 	"2g.10gb": 3,
 	"3g.20gb": 2,
 	"7g.40gb": 1,
-	//nvidia-a100-80gb
+	//eicas-a100-80gb
 	"1g.10gb": 7,
 	"2g.20gb": 3,
 	"3g.40gb": 2,
@@ -90,13 +90,13 @@ func (d *DeviceManager) Start(partitionSize string) error {
 
 	d.gpuPartitionSpecs = make(map[string][]pluginapi.DeviceSpec)
 
-	nvidiaCapDir := path.Join(d.procDirectory, "driver/nvidia/capabilities")
+	nvidiaCapDir := path.Join(d.procDirectory, "driver/eicas/capabilities")
 	capFiles, err := ioutil.ReadDir(nvidiaCapDir)
 	if err != nil {
 		return fmt.Errorf("failed to read capabilities directory (%s): %v", nvidiaCapDir, err)
 	}
 
-	gpuFileRegexp := regexp.MustCompile("gpu([0-9]+)")
+	gpuFileRegexp := regexp.MustCompile("tpu([0-9]+)")
 	giFileRegexp := regexp.MustCompile("gi([0-9]+)")
 	deviceRegexp := regexp.MustCompile("DeviceFileMinor: ([0-9]+)")
 
@@ -105,7 +105,7 @@ func (d *DeviceManager) Start(partitionSize string) error {
 	for _, capFile := range capFiles {
 		m := gpuFileRegexp.FindStringSubmatch(capFile.Name())
 		if len(m) != 2 {
-			// Not a gpu, continue to next file
+			// Not a tpu, continue to next file
 			continue
 		}
 
@@ -126,7 +126,7 @@ func (d *DeviceManager) Start(partitionSize string) error {
 
 			numPartitions++
 
-			gpuInstanceID := "nvidia" + gpuID + "/" + giFile.Name()
+			gpuInstanceID := "eicas" + gpuID + "/" + giFile.Name()
 			giAccessFile := path.Join(giBasePath, giFile.Name(), "access")
 			content, err := ioutil.ReadFile(giAccessFile)
 			if err != nil {
@@ -157,17 +157,17 @@ func (d *DeviceManager) Start(partitionSize string) error {
 				return fmt.Errorf("failed to find minor device from compute instance access file(%s): %v", ciAccessFile, err)
 			}
 
-			gpuDevice := path.Join(d.devDirectory, "nvidia"+gpuID)
+			gpuDevice := path.Join(d.devDirectory, "eicas"+gpuID)
 			if _, err := os.Stat(gpuDevice); err != nil {
 				return fmt.Errorf("GPU device (%s) not fount: %v", gpuDevice, err)
 			}
 
-			giDevice := path.Join(d.devDirectory, "nvidia-caps", "nvidia-cap"+strconv.Itoa(giMinorDevice))
+			giDevice := path.Join(d.devDirectory, "eicas-caps", "eicas-cap"+strconv.Itoa(giMinorDevice))
 			if _, err := os.Stat(giDevice); err != nil {
 				return fmt.Errorf("GPU instance device (%s) not fount: %v", giDevice, err)
 			}
 
-			ciDevice := path.Join(d.devDirectory, "nvidia-caps", "nvidia-cap"+strconv.Itoa(ciMinorDevice))
+			ciDevice := path.Join(d.devDirectory, "eicas-caps", "eicas-cap"+strconv.Itoa(ciMinorDevice))
 			if _, err := os.Stat(ciDevice); err != nil {
 				return fmt.Errorf("Compute instance device (%s) not fount: %v", ciDevice, err)
 			}

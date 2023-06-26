@@ -220,9 +220,9 @@ func (m *MetricServer) updateMetrics(containerDevices map[ContainerID][]string, 
 				glog.Infof("Error calculating duty cycle for device: %s: %v. Skipping this device", device, err)
 				continue
 			}
-			DutyCycle.WithLabelValues(container.namespace, container.pod, container.container, "nvidia", mi.uuid, mi.deviceModel).Set(float64(mi.dutyCycle))
-			MemoryTotal.WithLabelValues(container.namespace, container.pod, container.container, "nvidia", mi.uuid, mi.deviceModel).Set(float64(mi.totalMemory)) // memory reported in bytes
-			MemoryUsed.WithLabelValues(container.namespace, container.pod, container.container, "nvidia", mi.uuid, mi.deviceModel).Set(float64(mi.usedMemory))   // memory reported in bytes
+			DutyCycle.WithLabelValues(container.namespace, container.pod, container.container, "eicas", mi.uuid, mi.deviceModel).Set(float64(mi.dutyCycle))
+			MemoryTotal.WithLabelValues(container.namespace, container.pod, container.container, "eicas", mi.uuid, mi.deviceModel).Set(float64(mi.totalMemory)) // memory reported in bytes
+			MemoryUsed.WithLabelValues(container.namespace, container.pod, container.container, "eicas", mi.uuid, mi.deviceModel).Set(float64(mi.usedMemory))   // memory reported in bytes
 		}
 	}
 	for device, d := range gpuDevices {
@@ -232,9 +232,9 @@ func (m *MetricServer) updateMetrics(containerDevices map[ContainerID][]string, 
 			continue
 		}
 
-		DutyCycleNodeGpu.WithLabelValues("nvidia", mi.uuid, mi.deviceModel).Set(float64(mi.dutyCycle))
-		MemoryTotalNodeGpu.WithLabelValues("nvidia", mi.uuid, mi.deviceModel).Set(float64(mi.totalMemory)) // memory reported in bytes
-		MemoryUsedNodeGpu.WithLabelValues("nvidia", mi.uuid, mi.deviceModel).Set(float64(mi.usedMemory))   // memory reported in bytes
+		DutyCycleNodeGpu.WithLabelValues("eicas", mi.uuid, mi.deviceModel).Set(float64(mi.dutyCycle))
+		MemoryTotalNodeGpu.WithLabelValues("eicas", mi.uuid, mi.deviceModel).Set(float64(mi.totalMemory)) // memory reported in bytes
+		MemoryUsedNodeGpu.WithLabelValues("eicas", mi.uuid, mi.deviceModel).Set(float64(mi.usedMemory))   // memory reported in bytes
 	}
 }
 

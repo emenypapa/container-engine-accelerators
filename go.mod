@@ -1,4 +1,4 @@
-module github.com/GoogleCloudPlatform/container-engine-accelerators
+module github.com/EicasCloudPlatform/container-engine-accelerators
 
 go 1.18
 
