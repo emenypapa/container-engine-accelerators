@@ -55,6 +55,7 @@ func (m *MetricServer) RunHttpServer() {
 	api := r.Group(m.metricsEndpointPath)
 	{
 		api.GET("/tpu_usage", m.TpuUsageController)
+		api.GET("/tpu_mem", m.TpuMemController)
 	}
 
 	_ = r.Run(fmt.Sprintf(":%d", m.port))
@@ -72,6 +73,67 @@ func (m *MetricServer) TpuUsageController(ctx *gin.Context) {
 
 	appG.Response(http.StatusOK, SUCCESS, usage)
 	return
+}
+
+func (m *MetricServer) TpuMemController(ctx *gin.Context) {
+	appG := Gin{C: ctx}
+
+	data, err := m.TpuMem()
+
+	if err != nil {
+		appG.ResponseError(InvalidParams, err.Error())
+		return
+	}
+
+	appG.Response(http.StatusOK, SUCCESS, data)
+	return
+}
+
+// /proc/bmsophon/card0/bmsophon0/media
+func (m *MetricServer) TpuMem() (val TpuMemAnalysis, err error) {
+	reg := regexp.MustCompile(eicasDeviceRE)
+	regbm := regexp.MustCompile(deviceRE)
+	files, err := ioutil.ReadDir(tpuProcPath)
+	if err != nil {
+		glog.Errorf("Failed to get device for %s: %v", tpuSysfsPath, err)
+		return
+	}
+	var total, used, free int64
+	for _, f := range files {
+		if f.IsDir() {
+			if reg.MatchString(f.Name()) {
+				bmsx, err := ioutil.ReadDir(path.Join(tpuProcPath, f.Name()))
+				if err != nil {
+					glog.Errorf("Failed to get device for %s: %v", path.Join(tpuProcPath, f.Name()), err)
+					continue
+				}
+				for _, b := range bmsx {
+					if b.IsDir() {
+						if regbm.MatchString(b.Name()) {
+							fileName := path.Join(tpuProcPath, f.Name(), b.Name(), "media")
+							glog.Infof("Tpu Mem json file path: %s", fileName)
+							totalMemSize, usedMemSize, freeMemSize := m.memAnalysis(fileName)
+							total += totalMemSize
+							used += usedMemSize
+							free += freeMemSize
+						}
+					} else {
+						continue
+					}
+				}
+			}
+		} else {
+			continue
+		}
+
+	}
+
+	val = TpuMemAnalysis{
+		TotalMemSize: total,
+		UsedMemSize:  used,
+		FreeMemSize:  free,
+	}
+	return val, nil
 }
 
 func (m *MetricServer) TpuUsage() (val int, err error) {
@@ -97,6 +159,26 @@ func (m *MetricServer) TpuUsage() (val int, err error) {
 
 	}
 	return 0, nil
+}
+
+type TpuMemAnalysis struct {
+	TotalMemSize int64 `json:"total_mem_size"`
+	UsedMemSize  int64 `json:"used_mem_size"`
+	FreeMemSize  int64 `json:"free_mem_size"`
+}
+
+func (m *MetricServer) memAnalysis(fileName string) (totalMemSize, usedMemSize, freeMemSize int64) {
+	bs, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		glog.Infof("Failed to usageAnalysis: %v", err)
+	}
+	var t TpuMemAnalysis
+	err = json.Unmarshal(bs, &t)
+
+	totalMemSize = t.TotalMemSize
+	usedMemSize = t.UsedMemSize
+	freeMemSize = t.FreeMemSize
+	return
 }
 
 func (m *MetricServer) usageAnalysis(fileName string) (usage int, err error) {
@@ -163,7 +245,6 @@ func (g *Gin) Response(httpCode, errCode int32, data interface{}) {
 	if err != nil {
 		fmt.Println("json marshal error !")
 	}
-	//logger.Debugf(g.C, "smart_request_out: res[%s] ", string(res))
 	g.C.JSON(int(httpCode), response)
 	return
 }
