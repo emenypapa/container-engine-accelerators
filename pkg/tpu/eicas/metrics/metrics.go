@@ -16,7 +16,10 @@ package metrics
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
+	"github.com/gin-gonic/gin"
+	"github.com/golang/glog"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -25,45 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	//"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/golang/glog"
-	"github.com/prometheus/client_golang/prometheus"
-	//"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
-
-type HostMonitor struct {
-	tpuUsageDesc *prometheus.Desc
-}
-
-func NewHostMonitor() *HostMonitor {
-	return &HostMonitor{
-		tpuUsageDesc: prometheus.NewDesc(
-			"usage_rate_tpu_node",
-			"Percent of time when the TPU was actively processing",
-			//动态标签key列表
-			nil,
-			//静态标签
-			nil,
-		),
-	}
-}
-
-func (h *HostMonitor) Describe(ch chan<- *prometheus.Desc) {
-	ch <- h.tpuUsageDesc
-}
-
-func (h *HostMonitor) Collect(ch chan<- prometheus.Metric) {
-
-	value, err := h.tupUsage()
-	if err != nil {
-		glog.Errorf("Failed to get tpu usage for : %v", err)
-		return
-	}
-	ch <- prometheus.MustNewConstMetric(h.tpuUsageDesc, prometheus.GaugeValue, value)
-
-}
 
 // MetricServer exposes GPU metrics for all containers and nodes in prometheus format on the specified port.
 type MetricServer struct {
@@ -82,23 +47,34 @@ func NewMetricServer(collectionInterval, port int, metricsEndpointPath string) *
 	}
 }
 
-// Start performs necessary initializations and starts the metric server.
-func (m *MetricServer) Start() error {
-	glog.Infoln("Starting metrics server")
-	//TODO 校验nvml可用性，是否存在设备
-	go func() {
-		registry := prometheus.NewRegistry()
-		registry.MustRegister(NewHostMonitor())
-		http.Handle(m.metricsEndpointPath, promhttp.HandlerFor(registry, promhttp.HandlerOpts{Registry: registry}))
-		err := http.ListenAndServe(fmt.Sprintf(":%d", m.port), nil)
-		if err != nil {
-			glog.Infof("Failed to start metric server: %v", err)
-		}
-	}()
-	return nil
+func (m *MetricServer) RunHttpServer() {
+	r := gin.New()
+	r.Use(gin.Logger())
+	r.Use(gin.Recovery())
+
+	api := r.Group(m.metricsEndpointPath)
+	{
+		api.GET("/tpu_usage", m.TpuUsageController)
+	}
+
+	_ = r.Run(fmt.Sprintf(":%d", m.port))
 }
 
-func (h *HostMonitor) tupUsage() (val float64, err error) {
+func (m *MetricServer) TpuUsageController(ctx *gin.Context) {
+	appG := Gin{C: ctx}
+
+	usage, err := m.TpuUsage()
+
+	if err != nil {
+		appG.ResponseError(InvalidParams, err.Error())
+		return
+	}
+
+	appG.Response(http.StatusOK, SUCCESS, usage)
+	return
+}
+
+func (m *MetricServer) TpuUsage() (val int, err error) {
 	reg := regexp.MustCompile(deviceRE)
 	files, err := ioutil.ReadDir(tpuSysfsPath)
 	if err != nil {
@@ -109,12 +85,11 @@ func (h *HostMonitor) tupUsage() (val float64, err error) {
 		if f.IsDir() {
 			if reg.MatchString(f.Name()) {
 				glog.V(3).Infof("Found Eicas TPU %q\n", f.Name())
-				usage, err := h.usageAnalysis(path.Join(tpuSysfsPath, f.Name(), "device", "npu_usage"))
+				usage, err := m.usageAnalysis(path.Join(tpuSysfsPath, f.Name(), "device", "npu_usage"))
 				if err != nil {
 					continue
 				}
-				val = float64(usage)
-				//UsageRateNodeTpu.WithLabelValues("eicas", "mi.uuid", "mi.deviceModel").Set(float64(usage))
+				val = usage
 			}
 		} else {
 			continue
@@ -124,7 +99,7 @@ func (h *HostMonitor) tupUsage() (val float64, err error) {
 	return 0, nil
 }
 
-func (h *HostMonitor) usageAnalysis(fileName string) (usage int, err error) {
+func (m *MetricServer) usageAnalysis(fileName string) (usage int, err error) {
 	file, err := os.Open(fileName)
 	if err != nil {
 		glog.Infof("Failed to usageAnalysis: %v", err)
@@ -164,3 +139,138 @@ func (h *HostMonitor) usageAnalysis(fileName string) (usage int, err error) {
 	}
 	return 0, nil
 }
+
+type Gin struct {
+	C *gin.Context
+}
+
+type Response struct {
+	Code int32  `json:"code"`
+	Msg  string `json:"msg"`
+	//RequestId string      `json:"request_id"`
+	Time time.Time   `json:"time"`
+	Data interface{} `json:"data"`
+}
+
+func (g *Gin) Response(httpCode, errCode int32, data interface{}) {
+	SetErrorCode(g.C, errCode)
+	response := Response{
+		Code: errCode,
+		Data: data,
+		Time: time.Now(),
+	}
+	_, err := json.Marshal(response)
+	if err != nil {
+		fmt.Println("json marshal error !")
+	}
+	//logger.Debugf(g.C, "smart_request_out: res[%s] ", string(res))
+	g.C.JSON(int(httpCode), response)
+	return
+}
+
+func (g *Gin) ResponseError(errCode int32, data interface{}) {
+	g.Response(http.StatusOK, errCode, data)
+}
+
+func SetErrorCode(ctx *gin.Context, errorCode int32) {
+	SetContextData(ctx, ErrorCode, errorCode)
+}
+
+func SetContextData(ctx *gin.Context, key string, value interface{}) {
+	if ctx.Keys == nil {
+		ctx.Keys = make(map[string]interface{})
+	}
+	//ctx.Keys[key] = value
+	ctx.Set(key, value)
+}
+
+const (
+	UserId    = "user_id"
+	Token     = "token"
+	Role      = "role_code"
+	Name      = "name"
+	Nickname  = "nickname"
+	Avatar    = "avatar"
+	Email     = "email"
+	Phone     = "phone"
+	ErrorCode = "error_code"
+	AlarmType = "alarm_type"
+	RequestId = "request_id"
+	LoginType = "login_type"
+)
+
+const (
+	SUCCESS                = 200   // 成功
+	ERROR                  = 500   // 失败
+	InvalidParams          = 400   // 参数错误
+	SSONotLoggedIn         = 1100  // sso未登录
+	NotLoggedIn            = 1000  // 未登录
+	ParameterIllegal       = 1001  // 参数不合法
+	UnauthorizedUserId     = 1002  // 用户Id不合法
+	Unauthorized           = 1003  // 未授权
+	ServerError            = 1004  // 系统错误
+	NotData                = 1005  // 没有数据
+	ModelAddError          = 1006  // 添加错误
+	ModelDeleteError       = 1007  // 删除错误
+	ModelStoreError        = 1008  // 存储错误
+	OperationFailure       = 1009  // 操作失败
+	RoutingNotExist        = 1010  // 路由不存在
+	ErrorUserExist         = 1011  // 用户已存在
+	ErrorUserNotExist      = 1012  // 用户不存在
+	ErrorNeedCaptcha       = 1013  // 需要验证码
+	PasswordInvalid        = 1014  // 密码不符合规范
+	ErrorCheckTokenFail    = 10001 // 用户信息获取失败
+	ErrorCheckUserRoleFail = 10002 // 用户信息获取失败
+	CustomIdentityInvalid  = 10010 // 身份信息不正确
+	AccessTooFrequently    = 99999 // 访问太频繁
+	UnScreenshot           = 10003 // 访问太频繁
+	DateTooLong            = 10005 // 日期超长
+)
+
+//type HostMonitor struct {
+//	tpuUsageDesc *prometheus.Desc
+//}
+//
+//func NewHostMonitor() *HostMonitor {
+//	return &HostMonitor{
+//		tpuUsageDesc: prometheus.NewDesc(
+//			"usage_rate_tpu_node",
+//			"Percent of time when the TPU was actively processing",
+//			//动态标签key列表
+//			nil,
+//			//静态标签
+//			nil,
+//		),
+//	}
+//}
+//
+//func (h *HostMonitor) Describe(ch chan<- *prometheus.Desc) {
+//	ch <- h.tpuUsageDesc
+//}
+//
+//func (h *HostMonitor) Collect(ch chan<- prometheus.Metric) {
+//
+//	value, err := h.tupUsage()
+//	if err != nil {
+//		glog.Errorf("Failed to get tpu usage for : %v", err)
+//		return
+//	}
+//	ch <- prometheus.MustNewConstMetric(h.tpuUsageDesc, prometheus.GaugeValue, value)
+//
+//}
+
+// Start performs necessary initializations and starts the metric server.
+//func (m *MetricServer) Start() error {
+//	glog.Infoln("Starting metrics server")
+//	//TODO 校验nvml可用性，是否存在设备
+//	go func() {
+//		registry := prometheus.NewRegistry()
+//		registry.MustRegister(NewHostMonitor())
+//		http.Handle(m.metricsEndpointPath, promhttp.HandlerFor(registry, promhttp.HandlerOpts{Registry: registry}))
+//		err := http.ListenAndServe(fmt.Sprintf(":%d", m.port), nil)
+//		if err != nil {
+//			glog.Infof("Failed to start metric server: %v", err)
+//		}
+//	}()
+//	return nil
+//}

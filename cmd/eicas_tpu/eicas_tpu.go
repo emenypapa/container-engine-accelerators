@@ -67,11 +67,7 @@ func main() {
 	if enableContainerGPUMetrics {
 		glog.Infof("Starting metrics server on port: %d, endpoint path: %s, collection frequency: %d", tpuMetricsPort, "/metrics", tpuMetricsCollectionIntervalMs)
 		metricServer := metrics.NewMetricServer(tpuMetricsCollectionIntervalMs, tpuMetricsPort, "/metrics")
-		err := metricServer.Start()
-		if err != nil {
-			glog.Infof("Failed to start metric server: %v", err)
-			return
-		}
+		go metricServer.RunHttpServer()
 	}
 
 	ngm.Serve(pluginapi.DevicePluginPath, kubeletEndpoint, fmt.Sprintf("%s-%d.sock", pluginEndpointPrefix, time.Now().Unix()))
