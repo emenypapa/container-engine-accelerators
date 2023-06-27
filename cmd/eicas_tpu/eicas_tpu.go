@@ -15,14 +15,10 @@
 package main
 
 import (
-	"flag"
+	"bytes"
 	"fmt"
-	"github.com/EicasCloudPlatform/container-engine-accelerators/pkg/tpu/eicas/metrics"
-	"time"
-
-	gpumanager "github.com/EicasCloudPlatform/container-engine-accelerators/pkg/tpu/eicas"
-	"github.com/golang/glog"
-	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
+	"log"
+	"os/exec"
 )
 
 const (
@@ -38,43 +34,54 @@ const (
 )
 
 func main() {
-	flag.Parse()
-	glog.Infoln("device-plugin started")
-	mountPaths := []pluginapi.Mount{
-		{HostPath: hostPathPrefix, ContainerPath: containerPathPrefix, ReadOnly: true}}
 
-	ngm := gpumanager.NewEicasTPUManager(devDirectory, mountPaths)
-
-	for {
-		err := ngm.CheckDevicePaths()
-		if err == nil {
-			break
-		}
-		// Use non-default level to avoid log spam.
-		glog.V(3).Infof("eicasTPUManager.CheckDevicePaths() failed: %v", err)
-		time.Sleep(5 * time.Second)
+	cmd := exec.Command("bm-smi", "|", "grep", "PID")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout // 标准输出
+	cmd.Stderr = &stderr // 标准错误
+	err := cmd.Run()
+	outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
+	fmt.Printf("out:\n%s\nerr:\n%s\n", outStr, errStr)
+	if err != nil {
+		log.Fatalf("cmd.Run() failed with %s\n", err)
 	}
 
-	for {
-		err := ngm.Start()
-		if err == nil {
-			break
-		}
-
-		glog.Errorf("failed to start TPU device manager: %v", err)
-		time.Sleep(5 * time.Second)
-	}
-
-	if enableContainerGPUMetrics {
-		glog.Infof("Starting metrics server on port: %d, endpoint path: %s, collection frequency: %d", tpuMetricsPort, "/metrics", tpuMetricsCollectionIntervalMs)
-		metricServer := metrics.NewMetricServer(tpuMetricsCollectionIntervalMs, tpuMetricsPort, "/metrics")
-		err := metricServer.Start()
-		if err != nil {
-			glog.Infof("Failed to start metric server: %v", err)
-			return
-		}
-		defer metricServer.Stop()
-	}
-
-	ngm.Serve(pluginapi.DevicePluginPath, kubeletEndpoint, fmt.Sprintf("%s-%d.sock", pluginEndpointPrefix, time.Now().Unix()))
+	//flag.Parse()
+	//glog.Infoln("device-plugin started")
+	//mountPaths := []pluginapi.Mount{
+	//	{HostPath: hostPathPrefix, ContainerPath: containerPathPrefix, ReadOnly: true}}
+	//
+	//ngm := gpumanager.NewEicasTPUManager(devDirectory, mountPaths)
+	//
+	//for {
+	//	err := ngm.CheckDevicePaths()
+	//	if err == nil {
+	//		break
+	//	}
+	//	// Use non-default level to avoid log spam.
+	//	glog.V(3).Infof("eicasTPUManager.CheckDevicePaths() failed: %v", err)
+	//	time.Sleep(5 * time.Second)
+	//}
+	//
+	//for {
+	//	err := ngm.Start()
+	//	if err == nil {
+	//		break
+	//	}
+	//
+	//	glog.Errorf("failed to start TPU device manager: %v", err)
+	//	time.Sleep(5 * time.Second)
+	//}
+	//
+	//if enableContainerGPUMetrics {
+	//	glog.Infof("Starting metrics server on port: %d, endpoint path: %s, collection frequency: %d", tpuMetricsPort, "/metrics", tpuMetricsCollectionIntervalMs)
+	//	metricServer := metrics.NewMetricServer(tpuMetricsCollectionIntervalMs, tpuMetricsPort, "/metrics")
+	//	err := metricServer.Start()
+	//	if err != nil {
+	//		glog.Infof("Failed to start metric server: %v", err)
+	//		return
+	//	}
+	//}
+	//
+	//ngm.Serve(pluginapi.DevicePluginPath, kubeletEndpoint, fmt.Sprintf("%s-%d.sock", pluginEndpointPrefix, time.Now().Unix()))
 }

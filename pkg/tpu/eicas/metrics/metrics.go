@@ -29,7 +29,7 @@ import (
 	//"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	//"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -115,15 +115,15 @@ func (h *HostMonitor) Collect(ch chan<- prometheus.Metric) {
 //	return getGpuMetricsInfo(device, d)
 //}
 
-var (
-	// UsageRateNodeTpu reports the percent of time when the TPU was actively processing per Node.
-	UsageRateNodeTpu = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "usage_rate_tpu_node",
-			Help: "Percent of time when the TPU was actively processing",
-		},
-		[]string{"make", "accelerator_id", "model"})
-)
+//var (
+//	// UsageRateNodeTpu reports the percent of time when the TPU was actively processing per Node.
+//	UsageRateNodeTpu = promauto.NewGaugeVec(
+//		prometheus.GaugeOpts{
+//			Name: "usage_rate_tpu_node",
+//			Help: "Percent of time when the TPU was actively processing",
+//		},
+//		[]string{"make", "accelerator_id", "model"})
+//)
 
 const metricsResetInterval = time.Minute
 
@@ -279,14 +279,14 @@ func (h *HostMonitor) usageAnalysis(fileName string) (usage int, err error) {
 	return 0, nil
 }
 
-func (m *MetricServer) resetMetricsIfNeeded() {
-	if time.Now().After(m.lastMetricsResetTime.Add(metricsResetInterval)) {
-		UsageRateNodeTpu.Reset()
-
-		m.lastMetricsResetTime = time.Now()
-	}
-}
+//func (m *MetricServer) resetMetricsIfNeeded() {
+//	if time.Now().After(m.lastMetricsResetTime.Add(metricsResetInterval)) {
+//		UsageRateNodeTpu.Reset()
+//
+//		m.lastMetricsResetTime = time.Now()
+//	}
+//}
 
 // Stop performs cleanup operations and stops the metric server.
-func (m *MetricServer) Stop() {
-}
+//func (m *MetricServer) Stop() {
+//}
