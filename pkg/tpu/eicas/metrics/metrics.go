@@ -43,9 +43,9 @@ func NewHostMonitor() *HostMonitor {
 			"usage_rate_tpu_node",
 			"Percent of time when the TPU was actively processing",
 			//动态标签key列表
-			[]string{"instance_id", "instance_name"},
+			nil,
 			//静态标签
-			prometheus.Labels{"module": "tpu"},
+			nil,
 		),
 	}
 }
