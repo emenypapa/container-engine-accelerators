@@ -168,16 +168,53 @@ type TpuMemAnalysis struct {
 }
 
 func (m *MetricServer) memAnalysis(fileName string) (totalMemSize, usedMemSize, freeMemSize int64) {
-	bs, err := ioutil.ReadFile(fileName)
+	file, err := os.Open(fileName)
 	if err != nil {
+		fmt.Println(err.Error())
 		glog.Infof("Failed to usageAnalysis: %v", err)
+		return
 	}
-	var t TpuMemAnalysis
-	err = json.Unmarshal(bs, &t)
+	defer file.Close()
 
-	totalMemSize = t.TotalMemSize
-	usedMemSize = t.UsedMemSize
-	freeMemSize = t.FreeMemSize
+	// 创建一个 Scanner 用于读取文件内容
+	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		// 查找包含 "usage" 的行
+		if strings.Contains(line, "total_mem_size") {
+			// 解析出数值部分
+			fields := strings.Split(line, ",")
+			for i, field := range fields {
+				if field == "" {
+					continue
+				}
+				values := strings.Split(field, ":")
+				valueStr := strings.TrimSpace(values[1])
+
+				value, err := strconv.ParseInt(valueStr, 10, 64)
+				if err != nil {
+					glog.Infof("Failed to memAnalysis: %v", err)
+				} else {
+					if i == 0 {
+						totalMemSize = value
+					}
+
+					if i == 1 {
+						usedMemSize = value
+					}
+
+					if i == 2 {
+						freeMemSize = value
+					}
+				}
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		glog.Infof("Failed to memAnalysis: %v", err)
+	}
 	return
 }
 
