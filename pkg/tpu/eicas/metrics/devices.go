@@ -33,7 +33,7 @@ var (
 	gpuResourceName = "eicas.com/tpu"
 	tpuSysfsPath    = "/sys/class/bm-sophon"
 	tpuProcPath     = "/proc/bmsophon"
-	deviceRE        = `^bm-sophon[0-9]*$`
+	deviceRE        = `^bmsophon[0-9]*$`
 	eicasDeviceRE   = `^card[0-9]*$`
 	//tpuPathRegex    = regexp.MustCompile("/sys/class/bm-sophon/(bm-sophon[0-9]+)$")
 	connectionTimeout = 10 * time.Second
