@@ -56,6 +56,7 @@ func (m *MetricServer) RunHttpServer() {
 	{
 		api.GET("/tpu_usage", m.TpuUsageController)
 		api.GET("/tpu_mem", m.TpuMemController)
+		api.GET("/fpga_details", m.TpuMemController)
 	}
 
 	_ = r.Run(fmt.Sprintf(":%d", m.port))
@@ -83,6 +84,31 @@ func (m *MetricServer) TpuMemController(ctx *gin.Context) {
 	if err != nil {
 		appG.ResponseError(InvalidParams, err.Error())
 		return
+	}
+
+	appG.Response(http.StatusOK, SUCCESS, data)
+	return
+}
+
+type FpgaDetailsAnalysis struct {
+	TotalCpuSize int64 `json:"total_cpu_size"`
+	UsedCpuSize  int64 `json:"used_cpu_size"`
+	FreeCpuSize  int64 `json:"free_cpu_size"`
+	TotalMemSize int64 `json:"total_mem_size"`
+	UsedMemSize  int64 `json:"used_mem_size"`
+	FreeMemSize  int64 `json:"free_mem_size"`
+}
+
+func (m *MetricServer) FpgaDetailsController(ctx *gin.Context) {
+	appG := Gin{C: ctx}
+
+	data := FpgaDetailsAnalysis{
+		TotalCpuSize: 0,
+		UsedCpuSize:  0,
+		FreeCpuSize:  0,
+		TotalMemSize: 0,
+		UsedMemSize:  0,
+		FreeMemSize:  0,
 	}
 
 	appG.Response(http.StatusOK, SUCCESS, data)
