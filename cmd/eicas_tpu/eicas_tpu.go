@@ -15,10 +15,10 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"fmt"
-	"log"
 	"os/exec"
+	"strings"
 )
 
 const (
@@ -35,16 +35,50 @@ const (
 
 func main() {
 
-	cmd := exec.Command("bm-smi", "|", "grep", "PID")
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout // 标准输出
-	cmd.Stderr = &stderr // 标准错误
-	err := cmd.Run()
-	outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
-	fmt.Printf("out:\n%s\nerr:\n%s\n", outStr, errStr)
+	cmd := exec.Command("your-command")
+
+	// 创建命令的标准输出管道
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		log.Fatalf("cmd.Run() failed with %s\n", err)
+		fmt.Println("创建标准输出管道时出错:", err)
+		return
 	}
+
+	// 启动命令
+	if err := cmd.Start(); err != nil {
+		fmt.Println("启动命令时出错:", err)
+		return
+	}
+
+	// 创建一个Scanner来读取命令输出
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		line := scanner.Text()
+		// 处理每一行输出
+		processOutput(line)
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Println("读取命令输出时出错:", err)
+		return
+	}
+
+	// 等待命令执行完成
+	if err := cmd.Wait(); err != nil {
+		fmt.Println("等待命令执行完成时出错:", err)
+		return
+	}
+	//
+	//cmd := exec.Command("bm-smi", "|", "grep", "PID")
+	//var stdout, stderr bytes.Buffer
+	//cmd.Stdout = &stdout // 标准输出
+	//cmd.Stderr = &stderr // 标准错误
+	//err := cmd.Run()
+	//outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
+	//fmt.Printf("out:\n%s\nerr:\n%s\n", outStr, errStr)
+	//if err != nil {
+	//	log.Fatalf("cmd.Run() failed with %s\n", err)
+	//}
 
 	//flag.Parse()
 	//glog.Infoln("device-plugin started")
@@ -84,4 +118,20 @@ func main() {
 	//}
 	//
 	//ngm.Serve(pluginapi.DevicePluginPath, kubeletEndpoint, fmt.Sprintf("%s-%d.sock", pluginEndpointPrefix, time.Now().Unix()))
+}
+
+func processOutput(line string) {
+	// 在这里处理每行输出
+	// 例如提取所需信息、打印输出等
+	if strings.Contains(line, "PID") {
+		pid := extractPID(line)
+		fmt.Println("进程ID:", pid)
+	}
+}
+
+func extractPID(line string) string {
+	// 在这里编写提取PID的逻辑
+	// 可以使用字符串操作、正则表达式等方法来提取所需的信息
+	// 返回提取的PID字符串
+	return ""
 }
