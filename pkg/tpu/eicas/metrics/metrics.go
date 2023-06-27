@@ -48,7 +48,7 @@ func NewHostMonitor() *HostMonitor {
 			//静态标签
 			prometheus.Labels{"module": "tpu"},
 		),
-		//labelValues: []string{"myhost", "yunwei"},
+		labelValues: []string{"myhost", "yunwei"},
 	}
 }
 
@@ -80,7 +80,7 @@ func (h *HostMonitor) Collect(ch chan<- prometheus.Metric) {
 		}
 
 	}
-	ch <- prometheus.MustNewConstMetric(h.tpuDesc, prometheus.GaugeValue, float64(value))
+	ch <- prometheus.MustNewConstMetric(h.tpuDesc, prometheus.GaugeValue, float64(value), h.labelValues...)
 
 }
 
