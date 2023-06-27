@@ -56,7 +56,7 @@ func (m *MetricServer) RunHttpServer() {
 	{
 		api.GET("/tpu_usage", m.TpuUsageController)
 		api.GET("/tpu_mem", m.TpuMemController)
-		api.GET("/fpga_details", m.TpuMemController)
+		api.GET("/fpga_details", m.FpgaDetailsController)
 	}
 
 	_ = r.Run(fmt.Sprintf(":%d", m.port))
