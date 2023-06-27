@@ -34,13 +34,12 @@ import (
 )
 
 type HostMonitor struct {
-	tpuDesc     *prometheus.Desc
-	labelValues []string
+	tpuUsageDesc *prometheus.Desc
 }
 
 func NewHostMonitor() *HostMonitor {
 	return &HostMonitor{
-		tpuDesc: prometheus.NewDesc(
+		tpuUsageDesc: prometheus.NewDesc(
 			"usage_rate_tpu_node",
 			"Percent of time when the TPU was actively processing",
 			//动态标签key列表
@@ -48,12 +47,11 @@ func NewHostMonitor() *HostMonitor {
 			//静态标签
 			prometheus.Labels{"module": "tpu"},
 		),
-		labelValues: []string{"myhost", "yunwei"},
 	}
 }
 
 func (h *HostMonitor) Describe(ch chan<- *prometheus.Desc) {
-	ch <- h.tpuDesc
+	ch <- h.tpuUsageDesc
 }
 
 func (h *HostMonitor) Collect(ch chan<- prometheus.Metric) {
@@ -80,7 +78,7 @@ func (h *HostMonitor) Collect(ch chan<- prometheus.Metric) {
 		}
 
 	}
-	ch <- prometheus.MustNewConstMetric(h.tpuDesc, prometheus.GaugeValue, float64(value), h.labelValues...)
+	ch <- prometheus.MustNewConstMetric(h.tpuUsageDesc, prometheus.GaugeValue, float64(value))
 
 }
 
