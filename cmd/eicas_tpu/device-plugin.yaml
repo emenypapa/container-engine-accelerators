@@ -1,104 +1,54 @@
-# NOTE: This file is not the source of truth for GKE device plugins. Modifying this file would have no effect on GKE clusters.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  labels:
-    k8s-app: eicas-tpu-device-plugin
-  name: eicas-tpu-device-plugin
+  name: tpu-fpga-device-plugin-daemonset
   namespace: kube-system
 spec:
   selector:
     matchLabels:
-      k8s-app: eicas-tpu-device-plugin
+      name: tpu-fpga-device-plugin-ds
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       labels:
-        k8s-app: eicas-tpu-device-plugin
+        name: tpu-fpga-device-plugin-ds
     spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: cloud.google.com/gke-accelerator
-                    operator: Exists
+      hostNetwork: true
+      tolerations:
+        - key: eicas.com/tpu
+          operator: Exists
+          effect: NoSchedule
+      priorityClassName: "system-node-critical"
       containers:
-        - command:
-            - /usr/bin/eicas-tpu-device-plugin
-            - -logtostderr
-            - --enable-container-tpu-metrics
-            - --enable-health-monitoring
-          env:
-            - name: XID_CONFIG
-              valueFrom:
-                configMapKeyRef:
-                  key: HealthCriticalXid
-                  name: xid-config
-                  optional: true
-            - name: LD_LIBRARY_PATH
-              value: /usr/local/eicas/lib64
-            - name: GOMAXPROCS
-              value: "1"
-          image: gcr.io/gke-release/eicas-tpu-device-plugin@sha256:6b25281cd0fa3ca55f3e837a18be4a14b44952105568f466530dd85bcebde62f
-          name: eicas-tpu-device-plugin
+        - image: 192.168.2.20:30002/eicas/tpu-fpga-device-plugin:v1.0.0
+          name: tpu-device-plugin-ctr
           ports:
             - containerPort: 2112
               name: metrics
-          resources:
-            limits:
-              memory: 100Mi
-            requests:
-              cpu: 50m
-              memory: 100Mi
           securityContext:
-            privileged: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           volumeMounts:
-            - mountPath: /device-plugin
-              name: device-plugin
-            - mountPath: /dev
-              name: dev
-            - mountPath: /usr/local/eicas
-              name: eicas
-            - mountPath: /var/lib/kubelet/pod-resources
-              name: pod-resources
-            - mountPath: /proc
-              name: proc
-            - mountPath: /etc/eicas
-              name: eicas-config
-      priorityClassName: system-node-critical
-      restartPolicy: Always
-      securityContext:
-        seccompProfile:
-          type: RuntimeDefault
-      tolerations:
-        - effect: NoExecute
-          operator: Exists
-        - effect: NoSchedule
-          operator: Exists
+            - name: device-plugin
+              mountPath: /var/lib/kubelet/device-plugins
+            - name: opt
+              mountPath: /opt/sophon
+            - name: sys
+              mountPath: /sys/class/bm-sophon
+            - name: proc
+              mountPath: /root/proc/bmsophon
       volumes:
-        - hostPath:
+        - name: device-plugin
+          hostPath:
             path: /var/lib/kubelet/device-plugins
-            type: Directory
-          name: device-plugin
-        - hostPath:
-            path: /dev
-            type: Directory
-          name: dev
-        - hostPath:
-            path: /var/lib/kubelet/pod-resources
-            type: Directory
-          name: pod-resources
-        - hostPath:
-            path: /proc
-            type: Directory
-          name: proc
-        - hostPath:
-            path: /etc/eicas
-            type: DirectoryOrCreate
-          name: eicas-config
-        - hostPath:
-            path: /home/kubernetes/bin/eicas
-            type: Directory
-          name: eicas
-  updateStrategy:
-    type: RollingUpdate
+        - name: opt
+          hostPath:
+            path: /opt/sophon
+        - name: sys
+          hostPath:
+            path: /sys/class/bm-sophon
+        - name: proc
+          hostPath:
+            path: /proc/bmsophon
