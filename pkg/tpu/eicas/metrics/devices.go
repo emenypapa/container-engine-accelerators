@@ -32,7 +32,7 @@ var (
 	socketPath      = "/var/lib/kubelet/pod-resources/kubelet.sock"
 	gpuResourceName = "eicas.com/tpu"
 	tpuSysfsPath    = "/sys/class/bm-sophon"
-	tpuProcPath     = "/proc/bmsophon"
+	tpuProcPath     = "/root/proc/bmsophon"
 	deviceRE        = `^bmsophon[0-9]*$`
 	eicasDeviceRE   = `^card[0-9]*$`
 	//tpuPathRegex    = regexp.MustCompile("/sys/class/bm-sophon/(bm-sophon[0-9]+)$")
